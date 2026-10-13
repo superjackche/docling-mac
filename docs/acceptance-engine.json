@@ -1,0 +1,148 @@
+{
+  "date": "2026-10-13",
+  "platform": "macOS 27.2, Apple Silicon",
+  "docling": "2.138.0",
+  "lock_sha256": "7aac6d8e874370d563564bb1810842304a1536338497570caacc9ef14d4e32fc",
+  "checks": [
+    {
+      "format": "docx",
+      "seconds": 1.748,
+      "offline": false,
+      "markdown_verified": true,
+      "exports": [
+        {
+          "bytes": 146,
+          "sha256": "8c86af0c825209a2cb24b33b915c2cb8f598d82a7b5f807a7d4ad280f9ae4a4a"
+        },
+        {
+          "bytes": 743,
+          "sha256": "bb9378afd345eb18d4d74dac2443d9d13daa60e70381bdbc0ccc6d35b4372846"
+        },
+        {
+          "bytes": 5740,
+          "sha256": "15bc60f82ebcc9518941591919509451f88cdef882e9148d2429937c6d4cbed5"
+        }
+      ]
+    },
+    {
+      "format": "pptx",
+      "seconds": 1.699,
+      "offline": false,
+      "markdown_verified": true,
+      "exports": [
+        {
+          "bytes": 68,
+          "sha256": "f85b0f8780f13f0529856b830b946be41b7de153f4d9c17c963a901e68b0d82f"
+        },
+        {
+          "bytes": 633,
+          "sha256": "80393558929d5d1d4ceae7149e508ed6ea0d87394b7cb35884d43f365e94960b"
+        },
+        {
+          "bytes": 3021,
+          "sha256": "e150365797e673c331c45cff49286c2b44ae2c0165f4268a8e50040541b77bd2"
+        }
+      ]
+    },
+    {
+      "format": "xlsx",
+      "seconds": 1.702,
+      "offline": false,
+      "markdown_verified": true,
+      "exports": [
+        {
+          "bytes": 143,
+          "sha256": "3dcd05869f55f7ed9ad558bf88bf223dcdd4ddafa2d545bcb42041dfbaf3ae27"
+        },
+        {
+          "bytes": 694,
+          "sha256": "7dfd835e756a22fbcef3eaf6d7d78c8a1f204d121a61e64d91b4903decab664b"
+        },
+        {
+          "bytes": 4516,
+          "sha256": "0be71c336fe9ac01ec8ed14af5a7a7118bc01dc2080898c1f8f06141d73afb99"
+        }
+      ]
+    },
+    {
+      "format": "png",
+      "seconds": 35.579,
+      "offline": false,
+      "markdown_verified": true,
+      "exports": [
+        {
+          "bytes": 71,
+          "sha256": "2948f18c6e2607a6055f58cd2fcffd44bff7d1e76ac4320d8c984cb6ac91b8ed"
+        },
+        {
+          "bytes": 635,
+          "sha256": "88031f13de6d3d22b16e9777b7281a81e45433c0942590fc4f078fd430c988da"
+        },
+        {
+          "bytes": 2802,
+          "sha256": "9ab9c7c381f5c6ca76018685f4e792131067cf3c438d8dcd0ee3e626b47000ff"
+        }
+      ]
+    },
+    {
+      "format": "pdf",
+      "seconds": 7.003,
+      "offline": false,
+      "markdown_verified": true,
+      "exports": [
+        {
+          "bytes": 71,
+          "sha256": "2948f18c6e2607a6055f58cd2fcffd44bff7d1e76ac4320d8c984cb6ac91b8ed"
+        },
+        {
+          "bytes": 635,
+          "sha256": "88031f13de6d3d22b16e9777b7281a81e45433c0942590fc4f078fd430c988da"
+        },
+        {
+          "bytes": 2802,
+          "sha256": "77b6fd4c3e1eae310490fa98d8e358ad1cc120690644debd0564d877ce1179d1"
+        }
+      ]
+    },
+    {
+      "format": "pdf",
+      "seconds": 6.218,
+      "offline": true,
+      "markdown_verified": true,
+      "exports": [
+        {
+          "bytes": 71,
+          "sha256": "2948f18c6e2607a6055f58cd2fcffd44bff7d1e76ac4320d8c984cb6ac91b8ed"
+        },
+        {
+          "bytes": 635,
+          "sha256": "88031f13de6d3d22b16e9777b7281a81e45433c0942590fc4f078fd430c988da"
+        },
+        {
+          "bytes": 2802,
+          "sha256": "3e85dc4f7217b7d5f75c115e20b0e627590595cad76d32fe9c551d02a77811d7"
+        }
+      ]
+    },
+    {
+      "format": "native-pdf",
+      "seconds": 4.623,
+      "offline": true,
+      "markdown_verified": true,
+      "exports": [
+        {
+          "bytes": 280,
+          "sha256": "6c8fd7d7ae2797da275d115c22bbe10905807c012f7f2955fb6d9c2b18881fd8"
+        },
+        {
+          "bytes": 861,
+          "sha256": "f0089bcb0ac43ce92224baef521b7dc30ddbabe8f603be45511dc525ff4000d1"
+        },
+        {
+          "bytes": 5039,
+          "sha256": "fa8e3d8142de339efcad1c60b92e74c6338c6929fe81ee48f1e267803abde9d0"
+        }
+      ]
+    }
+  ]
+}
