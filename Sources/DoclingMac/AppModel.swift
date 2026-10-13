@@ -65,6 +65,8 @@ final class AppModel: ObservableObject {
     @Published var previewLimited = false
     @Published var importing = false
     @Published var upstreamMessage = "使用随客户端验证的锁定版本"
+    @Published var queuePaused = false
+    @Published private var reuseNotices: [UUID: Date] = [:]
     @AppStorage("recognizeScans") var ocr = true
     private let runner = ProcessRunner()
     private var cancelled = false
@@ -73,6 +75,7 @@ final class AppModel: ObservableObject {
     private var previewRequest = UUID()
     private var intakeTasks: [UUID: Task<ScanResult, Never>] = [:]
     private var exportTask: Task<ExportReport, Error>?
+    private var reuseNoticeTask: Task<Void, Never>?
     private let session = FileManager.default.temporaryDirectory.appendingPathComponent("DoclingMac-\(UUID().uuidString)")
     let support: URL
     let backend: URL
@@ -110,7 +113,7 @@ final class AppModel: ObservableObject {
     private func reindex() { indices = Dictionary(uniqueKeysWithValues: jobs.enumerated().map { ($0.element.id, $0.offset) }) }
     func chooseFiles() { NSApp.activate(); importing = true }
 
-    func add(_ urls: [URL]) async {
+    func add(_ urls: [URL], startAutomatically: Bool = true) async {
         guard !quitting else { return }
         let taskID = UUID(), supported = Set(Self.extensions)
         let task = Task.detached(priority: .utility) { FileOperations.scan(urls, extensions: supported) }
@@ -118,17 +121,54 @@ final class AppModel: ObservableObject {
         let result = await task.value
         intakeTasks[taskID] = nil; isImporting = !intakeTasks.isEmpty
         guard !quitting else { return }
-        var known = Set(jobs.map(\.identity))
-        let additions = result.files.filter { known.insert($0.identity).inserted }.map {
-            DocumentJob(source: $0.url, revision: $0.revision)
+        let existing = Dictionary(uniqueKeysWithValues: jobs.map { ($0.identity, $0) })
+        var added = 0
+        let promoted = result.files.map { input -> DocumentJob in
+            if let job = existing[input.identity] {
+                if job.ready { showReuseNotice(job.id) }
+                return job
+            }
+            added += 1
+            return DocumentJob(source: input.url, revision: input.revision)
         }
-        jobs.append(contentsOf: additions)
+        let promotedIDs = Set(promoted.map(\.id))
+        jobs = promoted + jobs.filter { !promotedIDs.contains($0.id) }
         reindex()
-        if selection == nil { selection = jobs.first?.id }
-        let skipped = result.files.count - additions.count
-        if !isBusy { status = "已添加 \(additions.count) 份" + (skipped > 0 ? "，跳过 \(skipped) 份未改变的文件" : "") }
+        if let first = promoted.first { selection = first.id }
+        let reused = result.files.count - added
+        if !isBusy { status = "已添加 \(added) 份" + (reused > 0 ? "，\(reused) 份已有记录已移到顶部" : "") }
         if !result.rejected.isEmpty {
             errorMessage = "有 \(result.rejected.count) 个项目未加入：\n" + result.rejected.prefix(12).joined(separator: "\n")
+        }
+        if startAutomatically { startWaitingAutomatically() }
+    }
+
+    private func startWaitingAutomatically() {
+        guard engineReady, !queuePaused, !isBusy, !quitting, waiting > 0 else { return }
+        Task { [weak self] in
+            guard let self, !self.queuePaused else { return }
+            await self.start()
+        }
+    }
+
+    func showsReuseNotice(_ id: UUID) -> Bool { reuseNotices[id] != nil }
+
+    private func showReuseNotice(_ id: UUID) {
+        guard let configuration else { return }
+        reuseNotices[id] = Date().addingTimeInterval(configuration.reuseNoticeSeconds)
+        scheduleNoticeExpiry()
+    }
+
+    private func scheduleNoticeExpiry() {
+        // One sleeping task serves the entire queue, including large cached batches.
+        guard reuseNoticeTask == nil, let next = reuseNotices.values.min() else { return }
+        let delay = UInt64(max(0, next.timeIntervalSinceNow) * 1_000_000_000)
+        reuseNoticeTask = Task { [weak self] in
+            do { try await Task.sleep(nanoseconds: delay) } catch { return }
+            guard let self, !self.quitting else { return }
+            self.reuseNoticeTask = nil
+            self.reuseNotices = self.reuseNotices.filter { $0.value > Date() }
+            self.scheduleNoticeExpiry()
         }
     }
 
@@ -146,7 +186,7 @@ final class AppModel: ObservableObject {
         }
         isBusy = true; installing = true; cancelled = false; logs = ""
         status = "正在准备引擎，首次安装需要几分钟…"
-        defer { isBusy = false; installing = false }
+        defer { isBusy = false; installing = false; startWaitingAutomatically() }
         do {
             try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
             // uv can partially change an existing environment before failing or
@@ -197,7 +237,7 @@ final class AppModel: ObservableObject {
     func prepareModels() async {
         guard engineReady, !isBusy, !quitting else { return }
         isBusy = true; cancelled = false; logs = ""
-        defer { isBusy = false }
+        defer { isBusy = false; if modelsReady { startWaitingAutomatically() } }
         do { try await prepareModelsInBackground(allowNetwork: !modelsReady) }
         catch { if !cancelled { errorMessage = error.localizedDescription }; status = error.localizedDescription }
     }
@@ -205,7 +245,7 @@ final class AppModel: ObservableObject {
     func checkUpdates() async {
         guard engineReady, !isBusy, !quitting else { return }
         isBusy = true; cancelled = false; upstreamMessage = "正在查询官方版本…"
-        defer { isBusy = false }
+        defer { isBusy = false; startWaitingAutomatically() }
         do {
             let result = try await runner.run(python, arguments: [backend.appendingPathComponent("models.py").path, "--updates"],
                 environment: engineEnvironment) { [weak self] _, errors in self?.logs = errors }
@@ -218,7 +258,7 @@ final class AppModel: ObservableObject {
 
     func start() async {
         guard engineReady, let config = configuration, !isBusy, waiting > 0, !quitting else { return }
-        isBusy = true; cancelled = false; logs = ""
+        isBusy = true; cancelled = false; queuePaused = false; logs = ""
         defer { isBusy = false; if cancelled { status = "已停止，尚未开始的文档保留在队列中" } }
         do {
             while waiting > 0 && !cancelled {
@@ -250,6 +290,7 @@ final class AppModel: ObservableObject {
                 status = "已完成 \(completed) 份" + (reused > 0 ? " · \(reused) 份复用结果" : "") + " · 模型已释放"
             }
         } catch {
+            queuePaused = true
             for i in jobs.indices where jobs[i].state == .running {
                 jobs[i].state = cancelled ? .cancelled : .failed
                 jobs[i].message = error.localizedDescription
@@ -271,34 +312,39 @@ final class AppModel: ObservableObject {
             jobs[index].pages = event.pages ?? 0; jobs[index].seconds = event.seconds ?? 0
             jobs[index].cached = event.cached ?? false
             jobs[index].output = event.output.map { URL(fileURLWithPath: $0) }
+            if event.cached == true { showReuseNotice(id) }
             if selection == id { loadPreview() }
         case "error": jobs[index].state = .failed; jobs[index].message = event.message ?? "转换失败"
         default: break
         }
     }
 
-    func cancel() { cancelled = true; status = "正在停止…"; runner.cancel() }
+    func cancel() { cancelled = true; queuePaused = true; status = "正在停止…"; runner.cancel() }
 
-    func retry(_ id: UUID) {
+    func retry(_ id: UUID, startAutomatically: Bool = true) {
         guard !isBusy, let index = indices[id] else { return }
         let previous = jobs[index]
         let replacement = DocumentJob(source: previous.source, revision: previous.revision)
         jobs[index] = replacement; reindex(); selection = replacement.id; loadPreview()
+        if startAutomatically { queuePaused = false; startWaitingAutomatically() }
     }
 
     func remove(_ id: UUID) {
         guard !isBusy else { return }
         jobs.removeAll { $0.id == id }; reindex()
+        reuseNotices[id] = nil
         if selection == id { selection = jobs.first?.id; loadPreview() }
     }
 
     func clearQueue() {
         guard !isBusy, !isImporting, !isExporting else { return }
         jobs.removeAll(); reindex(); selection = nil; loadPreview(); status = "队列已清空，转换缓存仍可复用"
+        queuePaused = false
+        reuseNoticeTask?.cancel(); reuseNoticeTask = nil; reuseNotices.removeAll()
         Task {
             guard !isBusy, !quitting else { return }
             isBusy = true
-            defer { isBusy = false }
+            defer { isBusy = false; startWaitingAutomatically() }
             do { try await pruneCache() } catch { errorMessage = error.localizedDescription }
         }
     }
@@ -401,6 +447,7 @@ final class AppModel: ObservableObject {
 
     func shutdown() async {
         quitting = true; cancelled = true
+        reuseNoticeTask?.cancel(); reuseNoticeTask = nil
         let scans = Array(intakeTasks.values)
         for task in scans { task.cancel() }
         exportTask?.cancel()

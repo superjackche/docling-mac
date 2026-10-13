@@ -9,7 +9,9 @@ private typealias ViewState<Value> = SwiftUI.State<Value>
 struct ContentView: View {
     @ObservedObject var model: AppModel
     @ViewState private var targeted = false
+    @ViewState private var previewTargeted = false
     @ViewState private var previewMode = 0
+    private var dropTargeted: Bool { targeted || previewTargeted }
 
     var body: some View {
         HSplitView {
@@ -22,6 +24,8 @@ struct ContentView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(Color(nsColor: .textBackgroundColor))
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .contentShape(Rectangle())
         .tint(accent)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
@@ -36,9 +40,9 @@ struct ContentView: View {
                 Button { model.showSettings = true } label: { Label("引擎与模型", systemImage: "gearshape") }
                 if model.isBusy {
                     Button { model.cancel() } label: { Label("停止", systemImage: "stop.fill") }
-                } else {
+                } else if model.waiting > 0 && model.queuePaused {
                     Button { Task { await model.start() } } label: {
-                        Label("开始转换", systemImage: "play.fill")
+                        Label("继续处理", systemImage: "play.fill")
                     }
                     .disabled(model.isBusy || !model.engineReady || model.waiting == 0)
                     .keyboardShortcut(.return, modifiers: .command)
@@ -49,9 +53,22 @@ struct ContentView: View {
             Task { await model.add(urls) }; return !urls.isEmpty
         } isTargeted: { targeted = $0 }
         .overlay {
-            if targeted {
-                RoundedRectangle(cornerRadius: 12).stroke(accent, style: StrokeStyle(lineWidth: 3, dash: [8]))
-                    .padding(8).background(accent.opacity(0.08)).allowsHitTesting(false)
+            if dropTargeted {
+                ZStack {
+                    accent.opacity(0.12)
+                    RoundedRectangle(cornerRadius: 16)
+                        .stroke(accent, style: StrokeStyle(lineWidth: 3, dash: [10, 6])).padding(10)
+                    VStack(spacing: 14) {
+                        Image(systemName: "tray.and.arrow.down.fill").font(.system(size: 44, weight: .light))
+                        Text("松开以添加文档").font(.system(size: 25, weight: .semibold))
+                        Text(model.queuePaused ? "加入暂停队列 · 继续后自动处理" : "多个文件或文件夹 · 放下即开始转换")
+                            .font(.system(size: 13)).foregroundStyle(.secondary)
+                    }
+                    .foregroundStyle(accent).padding(.horizontal, 36).padding(.vertical, 30)
+                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
+                    .overlay(RoundedRectangle(cornerRadius: 20).stroke(accent.opacity(0.25)))
+                    .shadow(color: .black.opacity(0.1), radius: 24, y: 10)
+                }.allowsHitTesting(false)
             }
         }
         .onChange(of: model.selection) { _, _ in model.loadPreview() }
@@ -88,6 +105,15 @@ struct ContentView: View {
                     Button("清空队列") { model.clearQueue() }.disabled(model.isBusy || model.isImporting || model.isExporting)
                 } label: { Image(systemName: "ellipsis.circle") }.menuStyle(.borderlessButton).fixedSize()
             }.padding(.horizontal, 20).padding(.top, 23).padding(.bottom, 12)
+            Button { model.chooseFiles() } label: {
+                VStack(spacing: 5) {
+                    Label("拖入文件或文件夹", systemImage: "tray.and.arrow.down")
+                        .font(.system(size: 12, weight: .medium))
+                    Text("列表、预览和空白处均可放下").font(.system(size: 10)).foregroundStyle(.secondary)
+                }.frame(maxWidth: .infinity).padding(.vertical, 12)
+                    .background(accent.opacity(0.04), in: RoundedRectangle(cornerRadius: 9))
+                    .overlay(RoundedRectangle(cornerRadius: 9).stroke(accent.opacity(0.3), style: StrokeStyle(dash: [4, 4])))
+            }.buttonStyle(.plain).foregroundStyle(accent).padding(.horizontal, 14).padding(.bottom, 8)
             if model.jobs.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("从一份文档开始").font(.system(size: 13, weight: .medium))
@@ -107,7 +133,9 @@ struct ContentView: View {
                                 HStack(spacing: 5) {
                                     if job.state == .running { ProgressView().controlSize(.mini) }
                                     else { Circle().fill(stateColor(job.state)).frame(width: 5, height: 5) }
-                                    Text(job.cached ? "已复用相同内容" : job.state.rawValue).font(.system(size: 10)).foregroundStyle(.secondary)
+                                    Text(model.showsReuseNotice(job.id) ? "已复用" : job.state.rawValue)
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(model.showsReuseNotice(job.id) ? accent : .secondary)
                                 }
                             }
                         }.padding(.vertical, 7).tag(job.id)
@@ -164,14 +192,14 @@ struct ContentView: View {
                 Image(systemName: "arrow.down.right").font(.system(size: 12, weight: .semibold))
                     .padding(9).background(accent).foregroundStyle(.white).clipShape(Circle()).offset(x: 38, y: 40)
             }.frame(height: 135)
-            Text("让文档，回到内容本身。").font(.system(size: 27, weight: .semibold)).padding(.top, 22)
-            Text("把 PDF、Office 文档或图片拖到这里，\n转成清晰、有结构、可继续使用的文本。")
+            Text("拖入文件或文件夹").font(.system(size: 27, weight: .semibold)).padding(.top, 22)
+            Text("放下后自动转换，无需再点开始。\n支持 PDF、Office 文档、图片和整个文件夹。")
                 .font(.system(size: 13)).foregroundStyle(.secondary).lineSpacing(6)
                 .multilineTextAlignment(.center).padding(.top, 14)
             Button { model.chooseFiles() } label: {
                 Label("选择文档", systemImage: "plus").padding(.horizontal, 16).padding(.vertical, 6)
             }.buttonStyle(.borderedProminent).controlSize(.large).padding(.top, 27)
-            Text("或直接拖放文件 · ⌘O").font(.system(size: 11)).foregroundStyle(.tertiary).padding(.top, 12)
+            Text("整个内容区均可拖入 · ⌘O 批量选择").font(.system(size: 11)).foregroundStyle(.secondary).padding(.top, 12)
             HStack(spacing: 9) {
                 ForEach(["PDF", "DOCX", "PPTX", "XLSX", "图片"], id: \.self) { item in
                     Text(item).font(.system(size: 9, weight: .medium, design: .monospaced))
@@ -182,7 +210,10 @@ struct ContentView: View {
             Spacer()
             Text("POWERED BY DOCLING").font(.system(size: 8, weight: .medium, design: .monospaced))
                 .tracking(2).foregroundStyle(.tertiary).padding(.bottom, 25)
-        }.frame(maxWidth: .infinity)
+        }.frame(maxWidth: .infinity, maxHeight: .infinity)
+            .overlay(RoundedRectangle(cornerRadius: 20)
+                .stroke(accent.opacity(0.22), style: StrokeStyle(lineWidth: 1.5, dash: [8, 6]))
+                .padding(.horizontal, 24).padding(.top, 24).padding(.bottom, 48).allowsHitTesting(false))
     }
 
     @ViewBuilder private func document(_ job: DocumentJob) -> some View {
@@ -190,7 +221,7 @@ struct ContentView: View {
             HStack(alignment: .center, spacing: 14) {
                 VStack(alignment: .leading, spacing: 5) {
                     Text(job.source.lastPathComponent).font(.system(size: 16, weight: .semibold)).lineLimit(1)
-                    Text(job.ready ? "\(job.pages > 0 ? "\(job.pages) 页 · " : "")\(String(format: "%.1f", job.seconds)) 秒 · \(job.cached ? "复用缓存" : "本地转换")" : job.state.rawValue)
+                    Text(job.ready ? "\(job.pages > 0 ? "\(job.pages) 页 · " : "")\(String(format: "%.1f", job.seconds)) 秒 · \(model.showsReuseNotice(job.id) ? "已复用" : job.state.rawValue)" : job.state.rawValue)
                         .font(.system(size: 11)).foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -224,7 +255,10 @@ struct ContentView: View {
                         .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 24).padding(.bottom, 8)
                 }
                 if previewMode == 0 && !model.html.isEmpty {
-                    DocumentPreview(html: model.html) { urls in Task { await model.add(urls) } }
+                    DocumentPreview(html: model.html,
+                                    onFileDrop: { urls in Task { await model.add(urls) } },
+                                    onTargetChanged: { previewTargeted = $0 })
+                        .onDisappear { previewTargeted = false }
                 }
                 else {
                     ScrollView([.vertical, .horizontal]) {
@@ -247,13 +281,19 @@ struct ContentView: View {
                         ScrollView { Text(job.message).font(.caption).textSelection(.enabled).foregroundStyle(.secondary) }
                             .frame(maxWidth: 480, maxHeight: 110).padding(.top, 8)
                     }
-                    Button("重新加入队列") { model.retry(job.id) }.disabled(model.isBusy).padding(.top, 16)
+                    Button("重试转换") { model.retry(job.id) }.disabled(model.isBusy).padding(.top, 16)
                 } else {
                     Image(systemName: "doc.text.magnifyingglass").font(.system(size: 38, weight: .ultraLight)).foregroundStyle(accent)
-                    Text("准备好，提取这份文档。").font(.title3).padding(.top, 16)
+                    Text(model.queuePaused ? "队列已暂停" : model.engineReady ? "已排队，将自动开始转换" : "准备本地引擎后自动转换")
+                        .font(.title3).padding(.top, 16)
                     Text("保留标题、段落、列表与表格结构").font(.caption).foregroundStyle(.secondary).padding(.top, 8)
-                    Button("开始转换") { Task { await model.start() } }
-                        .buttonStyle(.borderedProminent).disabled(!model.engineReady || model.isBusy).padding(.top, 22)
+                    if !model.engineReady {
+                        Button("准备本地引擎") { Task { await model.install() } }
+                            .buttonStyle(.borderedProminent).disabled(model.isBusy).padding(.top, 22)
+                    } else if model.queuePaused {
+                        Button("继续处理") { Task { await model.start() } }
+                            .buttonStyle(.borderedProminent).disabled(model.isBusy).padding(.top, 22)
+                    }
                 }
                 Spacer()
             }
@@ -283,6 +323,7 @@ struct ContentView: View {
 struct DocumentPreview: NSViewRepresentable {
     let html: String
     let onFileDrop: ([URL]) -> Void
+    let onTargetChanged: (Bool) -> Void
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeNSView(context: Context) -> FileDropWebView {
@@ -292,11 +333,13 @@ struct DocumentPreview: NSViewRepresentable {
         let view = FileDropWebView(frame: .zero, configuration: configuration)
         view.navigationDelegate = context.coordinator
         view.onFileDrop = onFileDrop
+        view.onTargetChanged = onTargetChanged
         return view
     }
 
     func updateNSView(_ view: FileDropWebView, context: Context) {
         view.onFileDrop = onFileDrop
+        view.onTargetChanged = onTargetChanged
         guard context.coordinator.lastHTML != html else { return }
         context.coordinator.lastHTML = html
         let style = """

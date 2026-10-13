@@ -45,7 +45,7 @@ struct ClientChecks {
         let source = directory.appendingPathComponent("中文 file.pdf")
         try Data("test".utf8).write(to: source)
         let model = AppModel(cacheURL: directory.appendingPathComponent("cache"))
-        await model.add([source, source, directory, URL(string: "https://example.com/file.pdf")!])
+        await model.add([source, source, directory, URL(string: "https://example.com/file.pdf")!], startAutomatically: false)
         precondition(model.jobs.count == 1 && model.errorMessage != nil)
         let alias = directory.appendingPathComponent("alias.pdf")
         try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: source)
@@ -55,7 +55,7 @@ struct ClientChecks {
         print("PASS export refuses input aliases")
         let oldID = model.selection!
         model.jobs[0].state = .failed
-        model.retry(oldID)
+        model.retry(oldID, startAutomatically: false)
         precondition(model.jobs[0].state == .pending && model.jobs[0].id != oldID)
         model.remove(model.jobs[0].id)
         precondition(model.jobs.isEmpty && model.selection == nil)
@@ -94,7 +94,7 @@ struct ClientChecks {
         print(parentExitsEarly ? "PASS cancellation works after parent exit" : "PASS bounded shutdown kills a stubborn descendant")
         }
 
-        await model.add([root.appendingPathComponent("Tests/fixtures/sample.html")])
+        await model.add([root.appendingPathComponent("Tests/fixtures/sample.html")], startAutomatically: false)
         precondition(model.engineReady, "Prepare the engine in the app before running checks")
         let conversion = Task { await model.start() }
         // A fresh CI machine may still be starting Python after 150 ms. Cancel
@@ -109,7 +109,7 @@ struct ClientChecks {
         precondition(model.jobs[0].state == .cancelled && !model.isBusy,
                      "Unexpected cancellation state: \(model.jobs[0].state), busy: \(model.isBusy)")
         print("PASS real conversion cancellation updates queue")
-        model.retry(model.jobs[0].id)
+        model.retry(model.jobs[0].id, startAutomatically: false)
         await model.start()
         for _ in 0..<100 where model.markdown.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
         precondition(model.jobs[0].state == .done && model.markdown.contains("Docling Mac 验收文档"))
@@ -123,12 +123,12 @@ struct ClientChecks {
             try Data("# Content \(index)".utf8).write(to: bigInput.appendingPathComponent("item-\(index).md"))
         }
         let bulk = AppModel(cacheURL: directory.appendingPathComponent("bulk-cache"))
-        await bulk.add([bigInput])
+        await bulk.add([bigInput], startAutomatically: false)
         precondition(bulk.jobs.count == 1000)
-        await bulk.add([bigInput])
+        await bulk.add([bigInput], startAutomatically: false)
         precondition(bulk.jobs.count == 1000, "Unchanged files must not be enqueued twice")
         try Data("# Changed content".utf8).write(to: bigInput.appendingPathComponent("item-0.md"))
-        await bulk.add([bigInput.appendingPathComponent("item-0.md")])
+        await bulk.add([bigInput.appendingPathComponent("item-0.md")], startAutomatically: false)
         precondition(bulk.jobs.count == 1001, "Modified files must remain eligible")
         print("PASS 1000-file folder intake, deduplication and changed input")
 

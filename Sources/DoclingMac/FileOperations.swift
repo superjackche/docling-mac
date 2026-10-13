@@ -9,6 +9,7 @@ struct RuntimeConfiguration: Decodable {
     let cacheMaxAgeDays: Int
     let previewMaxBytes: Int
     let logMaxBytes: Int
+    let reuseNoticeSeconds: Double
 
     static func load(_ backend: URL) throws -> Self {
         let decoder = JSONDecoder()
