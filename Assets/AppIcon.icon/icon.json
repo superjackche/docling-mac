@@ -1,0 +1,32 @@
+{
+  "fill": {
+    "automatic-gradient": "extended-srgb:0.965,0.941,0.871,1.000"
+  },
+  "groups": [
+    {
+      "layers": [
+        {
+          "image-name": "Document.png",
+          "name": "Document",
+          "glass": true,
+          "fill": "automatic",
+          "opacity": 1
+        }
+      ],
+      "lighting": "individual",
+      "shadow": {
+        "kind": "neutral",
+        "opacity": 0.5
+      },
+      "translucency": {
+        "enabled": false,
+        "value": 0.5
+      }
+    }
+  ],
+  "supported-platforms": {
+    "squares": [
+      "macOS"
+    ]
+  }
+}

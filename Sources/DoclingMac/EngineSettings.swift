@@ -8,6 +8,7 @@ struct EngineSettings: View {
                 Text("引擎与模型").font(.title2.bold())
                 Spacer()
                 Button("完成") { model.showSettings = false }
+                    .modifier(AppActionStyle(prominent: true)).keyboardShortcut(.defaultAction)
             }
             GroupBox {
                 VStack(alignment: .leading, spacing: 12) {
@@ -49,6 +50,6 @@ struct EngineSettings: View {
                 ScrollView { Text(model.logs).font(.system(size: 10, design: .monospaced)).textSelection(.enabled).frame(maxWidth: .infinity, alignment: .leading) }
                     .frame(height: 95)
             }
-        }.padding(24).frame(width: 520)
+        }.padding(24).frame(width: 520).tint(AppAppearance.accent)
     }
 }

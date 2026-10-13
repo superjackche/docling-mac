@@ -2,7 +2,7 @@ import SwiftUI
 import WebKit
 import UniformTypeIdentifiers
 
-private let accent = Color(red: 0.12, green: 0.40, blue: 0.35)
+private let accent = AppAppearance.accent
 // Disambiguate the stable property wrapper from the newer SDK's State macro.
 private typealias ViewState<Value> = SwiftUI.State<Value>
 
@@ -13,16 +13,19 @@ struct ContentView: View {
     private var dropTargeted: Bool { targeted || previewTargeted }
 
     var body: some View {
-        HSplitView {
-            sidebar.frame(minWidth: 245, idealWidth: 265, maxWidth: 320)
+        NavigationSplitView {
+            sidebar.frame(minHeight: 0, maxHeight: .infinity)
+                .navigationSplitViewColumnWidth(min: 245, ideal: 265, max: 320)
+        } detail: {
             VStack(spacing: 0) {
                 if let job = model.selected { document(job) } else { welcome }
                 Divider()
                 footer
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .frame(maxWidth: .infinity, minHeight: 0, maxHeight: .infinity)
             .background(Color(nsColor: .textBackgroundColor))
         }
+        .navigationSplitViewStyle(.balanced)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .contentShape(Rectangle())
         .tint(accent)
@@ -32,6 +35,9 @@ struct ContentView: View {
                     .help("添加文档 ⌘O")
                 Button { model.openResults() } label: { Label("结果文件夹", systemImage: "folder") }
                     .help("打开 ~/Docling_Mac，转换结果自动保存于此")
+            }
+            if #available(macOS 26, *) { ToolbarSpacer(.fixed, placement: .primaryAction) }
+            ToolbarItemGroup(placement: .primaryAction) {
                 Button { model.showSettings = true } label: { Label("引擎与模型", systemImage: "gearshape") }
                 if model.isBusy {
                     Button { model.cancel() } label: { Label("停止", systemImage: "stop.fill") }
@@ -54,15 +60,13 @@ struct ContentView: View {
                     RoundedRectangle(cornerRadius: 16)
                         .stroke(accent, style: StrokeStyle(lineWidth: 3, dash: [10, 6])).padding(10)
                     VStack(spacing: 14) {
-                        Image(systemName: "tray.and.arrow.down.fill").font(.system(size: 44, weight: .light))
+                        Image(systemName: "tray.and.arrow.down.fill").font(.system(size: 44, weight: .light)).foregroundStyle(accent)
                         Text("松开以添加文档").font(.system(size: 25, weight: .semibold))
                         Text(model.queuePaused ? "加入暂停队列 · 继续后自动处理" : "多个文件或文件夹 · 放下即开始转换")
                             .font(.system(size: 13)).foregroundStyle(.secondary)
                     }
-                    .foregroundStyle(accent).padding(.horizontal, 36).padding(.vertical, 30)
-                    .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20))
-                    .overlay(RoundedRectangle(cornerRadius: 20).stroke(accent.opacity(0.25)))
-                    .shadow(color: .black.opacity(0.1), radius: 24, y: 10)
+                    .foregroundStyle(.primary).padding(.horizontal, 36).padding(.vertical, 30)
+                    .modifier(DropFeedbackStyle())
                 }.allowsHitTesting(false)
             }
         }
@@ -79,7 +83,12 @@ struct ContentView: View {
         } message: { Text(String((model.errorMessage ?? "").suffix(2200))) }
         .sheet(isPresented: $model.showLogs) {
             VStack(alignment: .leading, spacing: 16) {
-                HStack { Text("运行日志").font(.title2.bold()); Spacer(); Button("完成") { model.showLogs = false } }
+                HStack {
+                    Text("运行日志").font(.title2.bold())
+                    Spacer()
+                    Button("完成") { model.showLogs = false }
+                        .modifier(AppActionStyle(prominent: true)).keyboardShortcut(.defaultAction)
+                }
                 Text("最近一次安装或转换的引擎输出。分享前请检查其中的文件路径。").foregroundStyle(.secondary)
                 ScrollView {
                     Text(model.logs.isEmpty ? "暂无日志" : model.logs)
@@ -99,13 +108,14 @@ struct ContentView: View {
                 Text("\(model.jobs.count)").font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
                 Menu {
                     Button("清空队列") { model.clearQueue() }.disabled(model.isBusy || model.isImporting || model.isSaving)
-                } label: { Image(systemName: "ellipsis.circle") }.menuStyle(.borderlessButton).fixedSize()
+                } label: { Image(systemName: "ellipsis.circle") }
+                    .menuStyle(.borderlessButton).fixedSize().accessibilityLabel("队列操作")
             }.padding(.horizontal, 20).padding(.top, 23).padding(.bottom, 12)
             Button { model.chooseFiles() } label: {
                 VStack(spacing: 5) {
                     Label("拖入文件或文件夹", systemImage: "tray.and.arrow.down")
                         .font(.system(size: 12, weight: .medium))
-                    Text("列表、预览和空白处均可放下").font(.system(size: 10)).foregroundStyle(.secondary)
+                    Text("列表、预览和空白处均可放下").font(.system(size: 10)).foregroundStyle(Color.secondary)
                 }.frame(maxWidth: .infinity).padding(.vertical, 12)
                     .background(accent.opacity(0.04), in: RoundedRectangle(cornerRadius: 9))
                     .overlay(RoundedRectangle(cornerRadius: 9).stroke(accent.opacity(0.3), style: StrokeStyle(dash: [4, 4])))
@@ -140,7 +150,7 @@ struct ContentView: View {
                             Button("从队列移除") { model.remove(job.id) }.disabled(model.isBusy || model.isSaving)
                         }
                     }
-                }.listStyle(.sidebar)
+                }.listStyle(.sidebar).scrollContentBackground(.hidden)
             }
             Divider().padding(.horizontal, 16)
             VStack(alignment: .leading, spacing: 13) {
@@ -157,7 +167,6 @@ struct ContentView: View {
             }.padding(20)
             if !model.engineReady { setupCard.padding(.horizontal, 14).padding(.bottom, 16) }
         }
-        .background(Color(nsColor: .controlBackgroundColor))
     }
 
     private var setupCard: some View {
@@ -171,7 +180,7 @@ struct ContentView: View {
             Button { Task { await model.install() } } label: {
                 HStack { if model.installing { ProgressView().controlSize(.small) }; Text(model.installing ? "安装中…" : "准备本地引擎") }
                     .frame(maxWidth: .infinity)
-            }.buttonStyle(.borderedProminent).disabled(model.isBusy)
+            }.modifier(AppActionStyle(prominent: true)).disabled(model.isBusy)
             if model.installing { Button("查看安装进度") { model.showLogs = true }.font(.caption).buttonStyle(.plain) }
         }.padding(14).background(accent.opacity(0.07)).clipShape(RoundedRectangle(cornerRadius: 12))
     }
@@ -194,7 +203,7 @@ struct ContentView: View {
                 .multilineTextAlignment(.center).padding(.top, 14)
             Button { model.chooseFiles() } label: {
                 Label("选择文档", systemImage: "plus").padding(.horizontal, 16).padding(.vertical, 6)
-            }.buttonStyle(.borderedProminent).controlSize(.large).padding(.top, 27)
+            }.modifier(AppActionStyle(prominent: true)).controlSize(.large).padding(.top, 27)
             Text("整个内容区均可拖入 · ⌘O 批量选择").font(.system(size: 11)).foregroundStyle(.secondary).padding(.top, 12)
             HStack(spacing: 9) {
                 ForEach(["PDF", "DOCX", "PPTX", "XLSX", "图片"], id: \.self) { item in
@@ -222,10 +231,15 @@ struct ContentView: View {
                 }
                 Spacer()
                 if job.ready {
-                    Button { model.copyMarkdown() } label: { Image(systemName: "doc.on.doc") }.help("复制 Markdown")
-                    Button { model.openResults(job.savedOutput) } label: {
-                        Label("打开结果", systemImage: "folder")
-                    }.disabled(job.savedOutput == nil)
+                    GlassActions {
+                        HStack(spacing: 8) {
+                            Button { model.copyMarkdown() } label: { Image(systemName: "doc.on.doc") }
+                                .help("复制 Markdown").accessibilityLabel("复制 Markdown")
+                            Button { model.openResults(job.savedOutput) } label: {
+                                Label("打开结果", systemImage: "folder")
+                            }.disabled(job.savedOutput == nil)
+                        }.modifier(AppActionStyle())
+                    }
                 }
             }.padding(24)
             Divider()
@@ -238,7 +252,7 @@ struct ContentView: View {
                 if let error = job.saveError {
                     HStack {
                         Text("自动保存失败：" + error).font(.caption).textSelection(.enabled)
-                        Button("重试保存") { model.saveResult(job.id) }
+                        Button("重试保存") { model.saveResult(job.id) }.modifier(AppActionStyle())
                     }.foregroundStyle(.orange).padding(12)
                 }
                 HStack {
@@ -279,7 +293,8 @@ struct ContentView: View {
                         ScrollView { Text(job.message).font(.caption).textSelection(.enabled).foregroundStyle(.secondary) }
                             .frame(maxWidth: 480, maxHeight: 110).padding(.top, 8)
                     }
-                    Button("重试转换") { model.retry(job.id) }.disabled(model.isBusy).padding(.top, 16)
+                    Button("重试转换") { model.retry(job.id) }
+                        .modifier(AppActionStyle(prominent: true)).disabled(model.isBusy).padding(.top, 16)
                 } else {
                     Image(systemName: "doc.text.magnifyingglass").font(.system(size: 38, weight: .ultraLight)).foregroundStyle(accent)
                     Text(model.queuePaused ? "队列已暂停" : model.engineReady ? "已排队，将自动开始转换" : "准备本地引擎后自动转换")
@@ -287,10 +302,10 @@ struct ContentView: View {
                     Text("保留标题、段落、列表与表格结构").font(.caption).foregroundStyle(.secondary).padding(.top, 8)
                     if !model.engineReady {
                         Button("准备本地引擎") { Task { await model.install() } }
-                            .buttonStyle(.borderedProminent).disabled(model.isBusy).padding(.top, 22)
+                            .modifier(AppActionStyle(prominent: true)).disabled(model.isBusy).padding(.top, 22)
                     } else if model.queuePaused {
                         Button("继续处理") { Task { await model.start() } }
-                            .buttonStyle(.borderedProminent).disabled(model.isBusy).padding(.top, 22)
+                            .modifier(AppActionStyle(prominent: true)).disabled(model.isBusy).padding(.top, 22)
                     }
                 }
                 Spacer()
@@ -305,7 +320,8 @@ struct ContentView: View {
             Text(model.isImporting ? "正在后台整理文件…" : model.isSaving ? "正在自动保存结果…" : model.status).lineLimit(1)
             Spacer()
             if model.waiting > 0 { Text("\(model.waiting) 份待处理").foregroundStyle(.secondary) }
-            Button { model.showLogs = true } label: { Image(systemName: "terminal") }.buttonStyle(.plain).help("运行日志")
+            Button { model.showLogs = true } label: { Image(systemName: "terminal") }
+                .buttonStyle(.plain).help("运行日志").accessibilityLabel("运行日志")
         }.font(.system(size: 10)).foregroundStyle(.secondary).padding(.horizontal, 18).frame(height: 34)
     }
 

@@ -16,11 +16,15 @@ concurrency:
 
 jobs:
   verify:
-    name: Build, test and package (Apple Silicon)
-    runs-on: macos-15
+    name: Build, test and package (${{ matrix.os }}, Apple Silicon)
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-15, macos-26]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 30
     env:
-      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+      DEVELOPER_DIR: /Applications/Xcode_26.3.app/Contents/Developer
       HF_HUB_DISABLE_TELEMETRY: '1'
       HF_HUB_OFFLINE: '1'
       PYTHONDONTWRITEBYTECODE: '1'
@@ -55,7 +59,7 @@ jobs:
       - name: Upload packages
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: Docling-Mac-arm64
+          name: Docling-Mac-arm64-${{ matrix.os }}
           path: |
             dist/*.dmg
             dist/*.zip
@@ -66,7 +70,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: acceptance-evidence
+          name: acceptance-evidence-${{ matrix.os }}
           path: |
             .build/engine-acceptance.json
             .build/batch-stress.json

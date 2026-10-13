@@ -8,9 +8,9 @@
 
 ## 使用
 
-需要 **Apple Silicon Mac（M 系列）和 macOS 14+**。当前锁定引擎不支持 Intel Mac。
+需要 **Apple Silicon Mac（M 系列）和 macOS 14+**。当前锁定引擎不支持 Intel Mac。macOS 26+ 使用原生 Liquid Glass，macOS 14/15 保留原生兼容外观。
 
-从 [GitHub Releases](https://github.com/superjackche/docling-mac/releases/latest) 下载 DMG，将应用拖到 Applications；也可解压 ZIP。安装包仅含约 3 MB 的客户端，解析环境与模型首次使用时单独下载。
+从 [GitHub Releases](https://github.com/superjackche/docling-mac/releases/latest) 下载 DMG，将应用拖到 Applications；也可解压 ZIP。安装包仅含约 6 MB 的客户端，解析环境与模型首次使用时单独下载。
 
 当前公开包采用 ad-hoc 签名，尚未做 Developer ID 公证。macOS 可能阻止首次打开；确认来源后可按 [Apple 的说明](https://support.apple.com/102445) 在「系统设置 → 隐私与安全性」中允许打开。
 
@@ -24,6 +24,12 @@
 支持 PDF、DOCX、PPTX、XLSX、HTML、Markdown、CSV，以及 PNG、JPEG、TIFF、BMP、WebP。扫描件使用 Apple OCR 识别中英文。图片嵌入结果文件；部分成功与失败均明确显示，可手动重试。
 
 首次处理 PDF / 图片需要联网准备排版与表格模型，也可提前在「引擎与模型」中准备。准备后实际验证离线加载；转换一律使用 Hugging Face 离线模式。应用从 `~/.local/bin/uv`、`/opt/homebrew/bin/uv` 或 `/usr/local/bin/uv` 查找 uv。环境与模型约占 1.6 GB，首次安装另需下载缓存空间。
+
+## Liquid Glass
+
+使用系统 `NavigationSplitView` 玻璃侧栏、原生工具栏分组、玻璃操作按钮和拖入提示。侧栏可折叠，预览与日志保持易读的实底内容；不在文档行或大文件正文叠加模糊层。原生控件跟随系统透明度与动态效果偏好，自定义提示在降低透明度或增强对比度时改用实底与清晰边框，强调色随浅色/深色外观切换。没有自建动画计时器或后台渲染循环。
+
+图标采用 Apple Icon Composer 的分层格式：AI 绘制的透明纸张前景与系统背景分离，由系统生成光照、阴影及深色/染色外观；旧系统保留原图标。源文件与生图提示见 [Assets/README.md](Assets/README.md)。
 
 ## 批量处理与占用
 
@@ -74,10 +80,10 @@
 
 ## 构建与测试
 
-仅需 Apple Command Line Tools（`xcode-select --install`），无需完整 Xcode。
+需要 **Xcode 26+ / macOS 26+ SDK**，用于编译 Liquid Glass API 和 Icon Composer 图标。最低运行系统仍是 macOS 14。Command Line Tools 单独安装不包含图标编译器；可通过 `DEVELOPER_DIR` 指定已安装的 Xcode，不必修改全局 `xcode-select`。
 
 ```sh
-./scripts/build.sh
+DEVELOPER_DIR=/Applications/Xcode.app/Contents/Developer ./scripts/build.sh
 open 'dist/Docling Mac.app'
 ```
 
@@ -90,6 +96,6 @@ open 'dist/Docling Mac.app'
 "$HOME/Library/Application Support/Docling Mac/runtime/bin/python3" scripts/verify-engine.py
 ```
 
-无界面环境可先运行 `./scripts/prepare-engine.sh`。GitHub Actions 在 macOS 15 ARM64 / Xcode 16.4 上准备锁定环境，运行 Swift 与 Python 检查，下载并离线验证模型，执行六种真实格式转换，再构建并校验安装包。`main` 推送、pull request、版本 tag 和手动触发均运行；结果与安装包保留为 CI artifacts。
+无界面环境可先运行 `./scripts/prepare-engine.sh`。GitHub Actions 在 macOS 15 和 macOS 26 ARM64 / Xcode 26.3 上准备锁定环境，运行 Swift 与 Python 检查，下载并离线验证模型，执行六种真实格式转换，再构建并校验安装包。`main` 推送、pull request、版本 tag 和手动触发均运行；结果与安装包保留为 CI artifacts。
 
 测试涵盖队列、进程取消、缓存失效、并发互斥、模型验证和真实格式。范围与结果见 [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md)。AI 绘制图标原图与提示词见 [Assets/README.md](Assets/README.md)。第三方包与模型保留各自许可证，见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。Docling 名称属于上游项目，本应用不代表上游官方产品。
