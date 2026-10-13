@@ -5,6 +5,7 @@ import AppKit
 struct ClientChecks {
     @MainActor
     static func main() async throws {
+        setbuf(stdout, nil)
         let literal = "中文 with spaces; $(not-a-shell)"
         let result = try await ProcessRunner().run(URL(fileURLWithPath: "/usr/bin/printf"),
             arguments: ["%s", literal]) { _, _ in }
@@ -96,10 +97,17 @@ struct ClientChecks {
         await model.add([root.appendingPathComponent("Tests/fixtures/sample.html")])
         precondition(model.engineReady, "Prepare the engine in the app before running checks")
         let conversion = Task { await model.start() }
-        try await Task.sleep(nanoseconds: 150_000_000)
+        // A fresh CI machine may still be starting Python after 150 ms. Cancel
+        // only after the real worker event, since unstarted jobs stay pending.
+        for _ in 0..<1000 where model.jobs[0].state == .pending {
+            try await Task.sleep(nanoseconds: 10_000_000)
+        }
+        precondition(model.jobs[0].state == .running,
+                     "Worker did not start: \(model.status); \(model.errorMessage ?? ""); \(model.logs)")
         model.cancel()
         await conversion.value
-        precondition(model.jobs[0].state == .cancelled && !model.isBusy)
+        precondition(model.jobs[0].state == .cancelled && !model.isBusy,
+                     "Unexpected cancellation state: \(model.jobs[0].state), busy: \(model.isBusy)")
         print("PASS real conversion cancellation updates queue")
         model.retry(model.jobs[0].id)
         await model.start()
