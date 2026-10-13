@@ -10,5 +10,7 @@ swiftc -parse-as-library Sources/DoclingMac/ProcessRunner.swift Sources/DoclingM
 swiftc -parse-as-library Sources/DoclingMac/ProcessRunner.swift Sources/DoclingMac/FileOperations.swift Sources/DoclingMac/AppModel.swift \
   Tests/MetadataChecks.swift -o .build/checks/metadata-checks
 .build/checks/metadata-checks
+swiftc -parse-as-library Sources/DoclingMac/FileDropWebView.swift Tests/DropChecks.swift -o .build/checks/drop-checks
+.build/checks/drop-checks
 engine_python="$HOME/Library/Application Support/Docling Mac/runtime/bin/python3"
 "$engine_python" -m unittest discover -s Tests -p 'test_*.py' -v

@@ -223,7 +223,9 @@ struct ContentView: View {
                     Text("大文档显示有限预览；复制与导出保留完整内容。")
                         .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 24).padding(.bottom, 8)
                 }
-                if previewMode == 0 && !model.html.isEmpty { DocumentPreview(html: model.html) }
+                if previewMode == 0 && !model.html.isEmpty {
+                    DocumentPreview(html: model.html) { urls in Task { await model.add(urls) } }
+                }
                 else {
                     ScrollView([.vertical, .horizontal]) {
                         Text(model.markdown).font(.system(size: 12, design: .monospaced)).textSelection(.enabled)
@@ -280,18 +282,21 @@ struct ContentView: View {
 
 struct DocumentPreview: NSViewRepresentable {
     let html: String
+    let onFileDrop: ([URL]) -> Void
     func makeCoordinator() -> Coordinator { Coordinator() }
 
-    func makeNSView(context: Context) -> WKWebView {
+    func makeNSView(context: Context) -> FileDropWebView {
         let configuration = WKWebViewConfiguration()
         configuration.defaultWebpagePreferences.allowsContentJavaScript = false
         configuration.websiteDataStore = .nonPersistent()
-        let view = WKWebView(frame: .zero, configuration: configuration)
+        let view = FileDropWebView(frame: .zero, configuration: configuration)
         view.navigationDelegate = context.coordinator
+        view.onFileDrop = onFileDrop
         return view
     }
 
-    func updateNSView(_ view: WKWebView, context: Context) {
+    func updateNSView(_ view: FileDropWebView, context: Context) {
+        view.onFileDrop = onFileDrop
         guard context.coordinator.lastHTML != html else { return }
         context.coordinator.lastHTML = html
         let style = """
