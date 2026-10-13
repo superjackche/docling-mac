@@ -39,8 +39,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         guard let model else { return .terminateNow }
         terminating = true
         Task {
-            await model.shutdown()
-            sender.reply(toApplicationShouldTerminate: true)
+            let saved = await model.shutdown()
+            if !saved { terminating = false }
+            sender.reply(toApplicationShouldTerminate: saved)
         }
         return .terminateLater
     }

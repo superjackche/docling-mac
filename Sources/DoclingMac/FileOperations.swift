@@ -1,5 +1,6 @@
 import Foundation
 import Darwin
+import CryptoKit
 
 struct RuntimeConfiguration: Decodable {
     let cpuThreads: Int
@@ -27,18 +28,6 @@ struct InputFile: Sendable {
 struct ScanResult: Sendable {
     var files: [InputFile] = []
     var rejected: [String] = []
-}
-
-struct ExportFile: Sendable {
-    let source: URL
-    let name: String
-    var originalFilename: String? = nil
-}
-
-struct ExportReport: Sendable {
-    let directory: URL
-    var count = 0
-    var errors: [String] = []
 }
 
 enum FileOperations {
@@ -80,18 +69,28 @@ enum FileOperations {
         return result
     }
 
-    static func preview(_ output: URL, maxBytes: Int) throws -> (String, String, Bool) {
+    static func preview(_ output: URL, maxBytes: Int, rendered: Bool) throws -> (String, String, Bool) {
         func read(_ name: String) throws -> (String, Bool) {
             let file = try FileHandle(forReadingFrom: output.appendingPathComponent(name))
             defer { try? file.close() }
-            let data = try file.read(upToCount: maxBytes + 1) ?? Data()
+            var data = Data()
+            while data.count <= maxBytes {
+                try Task.checkCancellation()
+                let chunk = try file.read(upToCount: min(1024 * 1024, maxBytes + 1 - data.count)) ?? Data()
+                if chunk.isEmpty { break }
+                data.append(chunk)
+            }
+            try Task.checkCancellation()
             if data.count > maxBytes { return (String(decoding: data.prefix(maxBytes), as: UTF8.self), true) }
             return (String(decoding: data, as: UTF8.self), false)
         }
+        if rendered {
+            let html = try read("document.html")
+            if !html.1 { return ("", html.0, false) }
+        }
+        // Never feed truncated HTML or an incomplete base64 image to WebKit.
         let markdown = try read("document.md")
-        let html = try read("document.html")
-        // Do not feed a truncated HTML document (or huge base64 image) to WebKit.
-        return (markdown.0, html.1 ? "" : html.0, markdown.1 || html.1)
+        return (markdown.0, "", rendered || markdown.1)
     }
 
     static func save(_ source: URL, to destination: URL, protecting inputs: [URL], originalFilename: String? = nil) throws {
@@ -119,7 +118,7 @@ enum FileOperations {
             // this root field. JSON strings cannot contain an unescaped newline.
             let boundary = Data(",\n  \"furniture\":".utf8)
             guard let split = prefix.range(of: boundary) else {
-                throw ClientError("Docling JSON 头部格式不符或超过 64 KiB，未导出文件。")
+                throw ClientError("Docling JSON 头部格式不符或超过 64 KiB，未保存文件。")
             }
             var headerData = Data(prefix[..<split.lowerBound])
             headerData.append(contentsOf: "\n}".utf8)
@@ -127,7 +126,7 @@ enum FileOperations {
                   header["schema_name"] as? String == "DoclingDocument",
                   header["version"] is String, header["name"] is String,
                   var origin = header["origin"] as? [String: Any], origin["filename"] is String else {
-                throw ClientError("Docling JSON 缺少完整来源元数据，未导出文件。")
+                throw ClientError("Docling JSON 缺少完整来源元数据，未保存文件。")
             }
             header["name"] = (originalFilename as NSString).deletingPathExtension
             origin["filename"] = originalFilename
@@ -139,8 +138,7 @@ enum FileOperations {
             initialData.append(prefix[split.lowerBound...])
         }
 
-        // A batch export must never replace an existing file, even if filesystem
-        // name normalization makes two generated names collide.
+        // Never replace a file while streaming into a newly reserved destination.
         let descriptor = Darwin.open(destination.path, O_WRONLY | O_CREAT | O_EXCL, 0o600)
         guard descriptor >= 0 else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
         let output = FileHandle(fileDescriptor: descriptor, closeOnDealloc: true)
@@ -158,26 +156,76 @@ enum FileOperations {
         complete = true
     }
 
-    static func exportBatch(_ files: [ExportFile], to parent: URL) throws -> ExportReport {
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyyMMdd-HHmmss"
-        let folder = parent.appendingPathComponent("Docling-\(formatter.string(from: Date()))-\(UUID().uuidString.prefix(4))")
-        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: false)
-        var report = ExportReport(directory: folder)
-        var names = Set<String>()
-        for file in files {
-            if Task.isCancelled { report.errors.append("导出已停止"); break }
-            let name = URL(fileURLWithPath: file.name)
-            var candidate = file.name, suffix = 2
-            while !names.insert(candidate.lowercased()).inserted {
-                candidate = "\(name.deletingPathExtension().lastPathComponent) (\(suffix)).\(name.pathExtension)"
-                suffix += 1
+}
+
+// One actor serializes disk writes and indexes receipts once per app session.
+// Receipts live with each result, so renaming a folder in Finder survives relaunch.
+actor ResultLibrary {
+    let root: URL
+    private var folders: [String: URL]?
+    private static let filenames = ["document.md", "document.html", "document.json"]
+    private static let receiptName = ".docling-result.json"
+
+    private struct Receipt: Codable {
+        let identity: String
+        let sizes: [String: Int]
+    }
+
+    init(root: URL) { self.root = root }
+
+    func save(output: URL, source: URL) throws -> URL {
+        let manager = FileManager.default
+        try Task.checkCancellation()
+        try manager.createDirectory(at: root, withIntermediateDirectories: true,
+                                    attributes: [.posixPermissions: 0o700])
+        if folders == nil {
+            var index: [String: URL] = [:]
+            for folder in try manager.contentsOfDirectory(at: root, includingPropertiesForKeys: [.isDirectoryKey, .isSymbolicLinkKey], options: .skipsHiddenFiles) {
+                let info = try folder.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+                guard info.isDirectory == true, info.isSymbolicLink != true,
+                      let data = try? Data(contentsOf: folder.appendingPathComponent(Self.receiptName)),
+                      let receipt = try? JSONDecoder().decode(Receipt.self, from: data) else { continue }
+                index[receipt.identity] = folder
             }
-            do {
-                try copyForExport(file.source, to: folder.appendingPathComponent(candidate), originalFilename: file.originalFilename)
-                report.count += 1
-            } catch { report.errors.append(file.name + "：" + error.localizedDescription) }
+            folders = index
         }
-        return report
+        // Cache directory names include content, engine, model and conversion options.
+        let identity = SHA256.hash(data: Data((source.path + "\n" + output.lastPathComponent).utf8))
+            .map { String(format: "%02x", $0) }.joined()
+        if let folder = folders?[identity],
+           let data = try? Data(contentsOf: folder.appendingPathComponent(Self.receiptName)),
+           let receipt = try? JSONDecoder().decode(Receipt.self, from: data), receipt.identity == identity,
+           Self.filenames.allSatisfy({ name in
+               let info = try? folder.appendingPathComponent(name).resourceValues(forKeys: [.isRegularFileKey, .isSymbolicLinkKey, .fileSizeKey])
+               return info?.isRegularFile == true && info?.isSymbolicLink != true && info?.fileSize == receipt.sizes[name]
+           }) { return folder }
+
+        // Build all formats privately, then publish the directory in one rename.
+        let staging = root.appendingPathComponent(".saving-" + UUID().uuidString)
+        try manager.createDirectory(at: staging, withIntermediateDirectories: false, attributes: [.posixPermissions: 0o700])
+        defer { try? manager.removeItem(at: staging) }
+        var sizes: [String: Int] = [:]
+        for name in Self.filenames {
+            try FileOperations.save(output.appendingPathComponent(name), to: staging.appendingPathComponent(name),
+                                    protecting: [source], originalFilename: source.lastPathComponent)
+            sizes[name] = try staging.appendingPathComponent(name).resourceValues(forKeys: [.fileSizeKey]).fileSize
+        }
+        try JSONEncoder().encode(Receipt(identity: identity, sizes: sizes))
+            .write(to: staging.appendingPathComponent(Self.receiptName), options: .atomic)
+        var name = source.lastPathComponent
+        while name.utf8.count > 220 { name.removeLast() }
+        if name.hasPrefix(".") { name = "文档" + name }
+        var suffix = 1
+        while true {
+            try Task.checkCancellation()
+            let folder = root.appendingPathComponent(name + (suffix == 1 ? "" : " (\(suffix))"))
+            // RENAME_EXCL also protects another app instance's result and user folders.
+            if renamex_np(staging.path, folder.path, UInt32(RENAME_EXCL)) == 0 {
+                folders?[identity] = folder
+                return folder
+            }
+            guard errno == EEXIST else { throw NSError(domain: NSPOSIXErrorDomain, code: Int(errno)) }
+            suffix += 1
+        }
     }
 }

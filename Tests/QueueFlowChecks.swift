@@ -8,7 +8,7 @@ struct QueueFlowChecks {
         let directory = FileManager.default.temporaryDirectory.appendingPathComponent("Docling-flow-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: directory) }
-        let model = AppModel(cacheURL: directory.appendingPathComponent("cache"))
+        let model = AppModel(cacheURL: directory.appendingPathComponent("cache"), resultsURL: directory.appendingPathComponent("results"))
         precondition(model.engineReady)
         func waitUntil(_ condition: () -> Bool) async throws {
             let deadline = Date().addingTimeInterval(60)
@@ -28,13 +28,15 @@ struct QueueFlowChecks {
         let second = try source("second", text: "相同内容")
         await model.add([first, second])
         try await waitUntil { model.completed == 2 && !model.isBusy }
+        precondition(model.jobs.allSatisfy { $0.savedOutput != nil && $0.saveError == nil })
+        let secondFolder = model.jobs[1].savedOutput
         let secondID = model.jobs[1].id
         precondition(model.jobs[1].cached)
         print("PASS intake automatically converts and duplicate content reuses results")
 
         await model.add([second])
         precondition(model.jobs.count == 2 && model.jobs[0].id == secondID && model.selection == secondID)
-        precondition(model.showsReuseNotice(secondID))
+        precondition(model.showsReuseNotice(secondID) && model.jobs[0].savedOutput == secondFolder)
         try await waitUntil { !model.showsReuseNotice(secondID) }
         precondition(model.jobs[0].state == .done && !model.isBusy)
         print("PASS repeated file moves to top, becomes selected, and its reuse notice expires")
@@ -57,6 +59,11 @@ struct QueueFlowChecks {
         model.retry(thirdID)
         try await waitUntil { model.completed == 4 && !model.isBusy }
         print("PASS retry automatically starts the cancelled document")
+        let saved = model.jobs.compactMap(\.savedOutput)
+        model.clearQueue()
+        try await waitUntil { !model.isBusy }
+        precondition(saved.count == 4 && saved.allSatisfy { FileManager.default.fileExists(atPath: $0.appendingPathComponent("document.json").path) })
+        print("PASS clearing the queue preserves all automatically saved results")
         await model.shutdown()
     }
 }

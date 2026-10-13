@@ -44,13 +44,14 @@ struct ClientChecks {
         defer { try? FileManager.default.removeItem(at: directory) }
         let source = directory.appendingPathComponent("中文 file.pdf")
         try Data("test".utf8).write(to: source)
-        let model = AppModel(cacheURL: directory.appendingPathComponent("cache"))
+        let model = AppModel(cacheURL: directory.appendingPathComponent("cache"), resultsURL: directory.appendingPathComponent("results"))
         await model.add([source, source, directory, URL(string: "https://example.com/file.pdf")!], startAutomatically: false)
         precondition(model.jobs.count == 1 && model.errorMessage != nil)
         let alias = directory.appendingPathComponent("alias.pdf")
         try FileManager.default.createSymbolicLink(at: alias, withDestinationURL: source)
         model.errorMessage = nil
-        await model.saveExport(from: source, to: alias)
+        do { try FileOperations.save(source, to: alias, protecting: model.jobs.map(\.source)) }
+        catch { model.errorMessage = error.localizedDescription }
         precondition(model.errorMessage != nil && (try? String(contentsOf: source, encoding: .utf8)) == "test")
         print("PASS export refuses input aliases")
         let oldID = model.selection!
@@ -111,9 +112,11 @@ struct ClientChecks {
         print("PASS real conversion cancellation updates queue")
         model.retry(model.jobs[0].id, startAutomatically: false)
         await model.start()
+        for _ in 0..<100 where model.html.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
+        precondition(model.jobs[0].state == .done && model.html.contains("保留段落结构") && !model.isBusy)
+        model.previewMode = 1; model.loadPreview()
         for _ in 0..<100 where model.markdown.isEmpty { try await Task.sleep(nanoseconds: 10_000_000) }
-        precondition(model.jobs[0].state == .done && model.markdown.contains("Docling Mac 验收文档"))
-        precondition(model.html.contains("保留段落结构") && !model.isBusy)
+        precondition(model.markdown.contains("Docling Mac 验收文档") && model.html.isEmpty)
         await model.shutdown()
         print("PASS retry converts and loads real previews")
 
@@ -122,7 +125,7 @@ struct ClientChecks {
         for index in 0..<1000 {
             try Data("# Content \(index)".utf8).write(to: bigInput.appendingPathComponent("item-\(index).md"))
         }
-        let bulk = AppModel(cacheURL: directory.appendingPathComponent("bulk-cache"))
+        let bulk = AppModel(cacheURL: directory.appendingPathComponent("bulk-cache"), resultsURL: directory.appendingPathComponent("bulk-results"))
         await bulk.add([bigInput], startAutomatically: false)
         precondition(bulk.jobs.count == 1000)
         await bulk.add([bigInput], startAutomatically: false)
@@ -132,19 +135,10 @@ struct ClientChecks {
         precondition(bulk.jobs.count == 1001, "Modified files must remain eligible")
         print("PASS 1000-file folder intake, deduplication and changed input")
 
-        let a = directory.appendingPathComponent("a.md"), b = directory.appendingPathComponent("b.md")
-        try Data("first".utf8).write(to: a); try Data("second".utf8).write(to: b)
-        let report = try FileOperations.exportBatch([ExportFile(source: a, name: "Report.md"), ExportFile(source: b, name: "report.md")], to: directory)
-        let names = try FileManager.default.contentsOfDirectory(at: report.directory, includingPropertiesForKeys: nil)
-        precondition(report.count == 2 && report.errors.isEmpty && Set(names.map { $0.lastPathComponent.lowercased() }).count == 2)
-        let contents = try Set(names.map { try String(contentsOf: $0, encoding: .utf8) })
-        precondition(contents == ["first", "second"])
-        print("PASS batch export keeps both same-name documents")
-
         let large = directory.appendingPathComponent("large-preview")
         try FileManager.default.createDirectory(at: large, withIntermediateDirectories: true)
         for name in ["document.md", "document.html"] { try Data(repeating: 65, count: 1_000_000).write(to: large.appendingPathComponent(name)) }
-        let preview = try FileOperations.preview(large, maxBytes: 1024)
+        let preview = try FileOperations.preview(large, maxBytes: 1024, rendered: true)
         precondition(preview.0.utf8.count == 1024 && preview.1.isEmpty && preview.2)
         print("PASS preview memory bound keeps full export on disk")
         await bulk.shutdown()
@@ -157,12 +151,12 @@ struct ClientChecks {
         try FileManager.default.createSymbolicLink(at: isolatedSupport.appendingPathComponent("runtime/bin/python3"), withDestinationURL: model.python)
         try FileManager.default.copyItem(at: model.support.appendingPathComponent("engine.lock"),
                                         to: isolatedSupport.appendingPathComponent("engine.lock"))
-        let repair = AppModel(backendURL: brokenBackend, cacheURL: directory.appendingPathComponent("repair-cache"), supportURL: isolatedSupport)
+        let repair = AppModel(backendURL: brokenBackend, cacheURL: directory.appendingPathComponent("repair-cache"), supportURL: isolatedSupport, resultsURL: directory.appendingPathComponent("repair-results"))
         precondition(repair.engineReady)
         await repair.install()
         precondition(!repair.engineReady && repair.errorMessage != nil)
         precondition(!FileManager.default.fileExists(atPath: isolatedSupport.appendingPathComponent("engine.lock").path))
-        let reopened = AppModel(backendURL: brokenBackend, supportURL: isolatedSupport)
+        let reopened = AppModel(backendURL: brokenBackend, supportURL: isolatedSupport, resultsURL: directory.appendingPathComponent("repair-results"))
         precondition(!reopened.engineReady, "A failed repair cannot look ready after relaunch")
         print("PASS failed engine repair invalidates readiness across relaunch without touching the real runtime")
     }

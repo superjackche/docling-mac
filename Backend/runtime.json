@@ -4,7 +4,7 @@
   "pipeline_queue_size": 4,
   "cache_max_bytes": 536870912,
   "cache_max_age_days": 14,
-  "preview_max_bytes": 524288,
+  "preview_max_bytes": 104857600,
   "log_max_bytes": 32768,
   "reuse_notice_seconds": 4
 }

@@ -56,18 +56,15 @@ doc.save_as_json(Path(sys.argv[1]))
         precondition(copiedMarkdown == text)
         print("PASS Markdown remains a direct byte-for-byte copy")
 
-        let report = try FileOperations.exportBatch([
-            ExportFile(source: cached, name: "同名.json", originalFilename: "甲.pdf"),
-            ExportFile(source: cached, name: "同名.json", originalFilename: "乙.pdf")
-        ], to: folder)
-        precondition(report.count == 2 && report.errors.isEmpty)
-        let first = try JSONSerialization.jsonObject(with: Data(contentsOf: report.directory.appendingPathComponent("同名.json"))) as! [String: Any]
-        let second = try JSONSerialization.jsonObject(with: Data(contentsOf: report.directory.appendingPathComponent("同名 (2).json"))) as! [String: Any]
-        precondition((first["origin"] as! [String: Any])["filename"] as? String == "甲.pdf")
-        precondition((second["origin"] as! [String: Any])["filename"] as? String == "乙.pdf")
+        for (name, sourceName) in [("甲.json", "甲.pdf"), ("乙.json", "乙.pdf")] {
+            let destination = folder.appendingPathComponent(name)
+            try FileOperations.save(cached, to: destination, protecting: [], originalFilename: sourceName)
+            let result = try JSONSerialization.jsonObject(with: Data(contentsOf: destination)) as! [String: Any]
+            precondition((result["origin"] as! [String: Any])["filename"] as? String == sourceName)
+        }
         let cacheAfterBatch = try Data(contentsOf: cached)
         precondition(cacheAfterBatch == original)
-        print("PASS batch names do not overwrite and each JSON has its own input identity")
+        print("PASS shared cached JSON saves with each source identity without modifying cache")
 
         let incompatible = folder.appendingPathComponent("incompatible.json")
         try Data("{\"name\":\"other schema\"}".utf8).write(to: incompatible)

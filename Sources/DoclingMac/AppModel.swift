@@ -1,7 +1,6 @@
 import AppKit
 import CryptoKit
 import SwiftUI
-import UniformTypeIdentifiers
 
 enum JobState: String {
     case pending = "等待转换", running = "正在解析", done = "已完成"
@@ -15,6 +14,9 @@ struct DocumentJob: Identifiable {
     var state: JobState = .pending
     var message = ""
     var output: URL?
+    var savedOutput: URL?
+    var saveError: String?
+    var saving = false
     var pages = 0
     var seconds = 0.0
     var cached = false
@@ -51,7 +53,7 @@ final class AppModel: ObservableObject {
     @Published var selection: UUID?
     @Published var isBusy = false
     @Published var installing = false
-    @Published var isExporting = false
+    @Published var isSaving = false
     @Published var isImporting = false
     @Published var engineReady = false
     @Published var modelsReady = false
@@ -63,6 +65,8 @@ final class AppModel: ObservableObject {
     @Published var markdown = ""
     @Published var html = ""
     @Published var previewLimited = false
+    @Published var previewLoading = false
+    @Published var previewMode = 0
     @Published var importing = false
     @Published var upstreamMessage = "使用随客户端验证的锁定版本"
     @Published var queuePaused = false
@@ -74,12 +78,16 @@ final class AppModel: ObservableObject {
     private var indices: [UUID: Int] = [:]
     private var previewRequest = UUID()
     private var intakeTasks: [UUID: Task<ScanResult, Never>] = [:]
-    private var exportTask: Task<ExportReport, Error>?
+    private var saveTask: Task<Void, Never>?
+    private var pendingSaves: [UUID] = []
+    private var previewTask: Task<(String, String, Bool), Error>?
+    private let library: ResultLibrary
     private var reuseNoticeTask: Task<Void, Never>?
     private let session = FileManager.default.temporaryDirectory.appendingPathComponent("DoclingMac-\(UUID().uuidString)")
     let support: URL
     let backend: URL
     let cache: URL
+    let results: URL
     let configuration: RuntimeConfiguration?
 
     var selected: DocumentJob? { jobs.first { $0.id == selection } }
@@ -98,12 +106,14 @@ final class AppModel: ObservableObject {
          "HF_HOME": support.appendingPathComponent("models").path]
     }
 
-    init(backendURL: URL? = nil, cacheURL: URL? = nil, supportURL: URL? = nil) {
+    init(backendURL: URL? = nil, cacheURL: URL? = nil, supportURL: URL? = nil, resultsURL: URL? = nil) {
         support = supportURL ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Docling Mac")
         backend = backendURL ?? Bundle.main.resourceURL!.appendingPathComponent("Backend")
         cache = cacheURL ?? FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
             .appendingPathComponent("Docling Mac/Results")
+        results = resultsURL ?? FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent("Docling_Mac")
+        library = ResultLibrary(root: results)
         configuration = try? RuntimeConfiguration.load(backend)
         engineReady = configuration != nil && FileManager.default.isExecutableFile(atPath: python.path)
             && lockHash != nil && (try? String(contentsOf: marker, encoding: .utf8)) == lockHash
@@ -283,11 +293,13 @@ final class AppModel: ObservableObject {
                     line: { [weak self] text in self?.receive(text) }
                 ) { [weak self] _, errors in self?.logs = errors }
                 try? FileManager.default.removeItem(at: manifest)
+                if let saveTask { await saveTask.value }
                 if cancelled { for i in jobs.indices where jobs[i].state == .running { jobs[i].state = .cancelled }; break }
                 guard result.status == 0, WorkerEvent.parse(result.output).contains(where: { $0.event == "batch_complete" }) else {
                     throw ClientError(WorkerEvent.parse(result.output).last(where: { $0.event == "error" })?.message ?? result.errors)
                 }
-                status = "已完成 \(completed) 份" + (reused > 0 ? " · \(reused) 份复用结果" : "") + " · 模型已释放"
+                status = "已完成 \(completed) 份" + (reused > 0 ? " · \(reused) 份复用结果" : "") + " · 结果已自动保存"
+                if jobs.contains(where: { $0.saveError != nil }) { status = "部分结果保存失败，请在文档中重试保存" }
             }
         } catch {
             queuePaused = true
@@ -298,10 +310,11 @@ final class AppModel: ObservableObject {
             status = cancelled ? "已停止" : "后台任务未完成，可查看日志"
             if !cancelled { errorMessage = error.localizedDescription }
         }
+        if let saveTask { await saveTask.value }
     }
 
     private func receive(_ line: String) {
-        guard !quitting, let event = WorkerEvent.parse(line).first else { return }
+        guard let event = WorkerEvent.parse(line).first, !quitting || event.event == "complete" else { return }
         if let message = event.message, !cancelled { status = message }
         guard let id = event.id, let index = indices[id] else { return }
         switch event.event {
@@ -312,8 +325,9 @@ final class AppModel: ObservableObject {
             jobs[index].pages = event.pages ?? 0; jobs[index].seconds = event.seconds ?? 0
             jobs[index].cached = event.cached ?? false
             jobs[index].output = event.output.map { URL(fileURLWithPath: $0) }
+            saveResult(id)
             if event.cached == true { showReuseNotice(id) }
-            if selection == id { loadPreview() }
+            if selection == id && !quitting { loadPreview() }
         case "error": jobs[index].state = .failed; jobs[index].message = event.message ?? "转换失败"
         default: break
         }
@@ -322,7 +336,7 @@ final class AppModel: ObservableObject {
     func cancel() { cancelled = true; queuePaused = true; status = "正在停止…"; runner.cancel() }
 
     func retry(_ id: UUID, startAutomatically: Bool = true) {
-        guard !isBusy, let index = indices[id] else { return }
+        guard !isBusy, !isSaving, let index = indices[id] else { return }
         let previous = jobs[index]
         let replacement = DocumentJob(source: previous.source, revision: previous.revision)
         jobs[index] = replacement; reindex(); selection = replacement.id; loadPreview()
@@ -330,15 +344,15 @@ final class AppModel: ObservableObject {
     }
 
     func remove(_ id: UUID) {
-        guard !isBusy else { return }
+        guard !isBusy, !isSaving else { return }
         jobs.removeAll { $0.id == id }; reindex()
         reuseNotices[id] = nil
         if selection == id { selection = jobs.first?.id; loadPreview() }
     }
 
     func clearQueue() {
-        guard !isBusy, !isImporting, !isExporting else { return }
-        jobs.removeAll(); reindex(); selection = nil; loadPreview(); status = "队列已清空，转换缓存仍可复用"
+        guard !isBusy, !isImporting, !isSaving else { return }
+        jobs.removeAll(); reindex(); selection = nil; loadPreview(); status = "队列已清空，已保存文件仍保留在 Docling_Mac"
         queuePaused = false
         reuseNoticeTask?.cancel(); reuseNoticeTask = nil; reuseNotices.removeAll()
         Task {
@@ -358,14 +372,27 @@ final class AppModel: ObservableObject {
     }
 
     func loadPreview() {
-        markdown = ""; html = ""; previewLimited = false
+        markdown = ""; html = ""; previewLimited = false; previewLoading = false
+        previewTask?.cancel()
+        let previous = previewTask
         let request = UUID(); previewRequest = request
         guard let output = selected?.output, let config = configuration else { return }
+        let rendered = previewMode == 0
+        previewLoading = true
         Task {
+            // Cancel and join old I/O before allocating another large preview.
+            if let previous { _ = try? await previous.value }
+            guard request == previewRequest, !quitting else { return }
+            let task = Task.detached(priority: .utility) {
+                try FileOperations.preview(output, maxBytes: config.previewMaxBytes, rendered: rendered)
+            }
+            previewTask = task
+            defer { if request == previewRequest { previewLoading = false; previewTask = nil } }
             do {
-                let content = try await Task.detached(priority: .utility) { try FileOperations.preview(output, maxBytes: config.previewMaxBytes) }.value
+                let content = try await task.value
                 guard request == previewRequest, !quitting else { return }
                 markdown = content.0; html = content.1; previewLimited = content.2
+            } catch is CancellationError {
             } catch { if request == previewRequest && !quitting { errorMessage = error.localizedDescription } }
         }
     }
@@ -384,79 +411,66 @@ final class AppModel: ObservableObject {
         }
     }
 
-    func export(_ ext: String) {
-        guard !isExporting, let job = selected, let output = job.output else { return }
-        NSApp.activate()
-        let panel = NSSavePanel()
-        panel.nameFieldStringValue = job.source.deletingPathExtension().lastPathComponent + "." + ext
-        panel.allowedContentTypes = [UTType(filenameExtension: ext) ?? .data]
-        panel.canCreateDirectories = true
-        panel.begin { [weak self] response in
-            guard response == .OK, let url = panel.url else { return }
-            Task { await self?.saveExport(from: output.appendingPathComponent("document." + ext), to: url,
-                                         originalFilename: job.source.lastPathComponent) }
-        }
-    }
-
-    func saveExport(from source: URL, to url: URL, originalFilename: String? = nil) async {
-        guard !isExporting else { return }
-        isExporting = true
-        let inputs = jobs.map(\.source)
-        let task = Task.detached(priority: .utility) {
-            try FileOperations.save(source, to: url, protecting: inputs, originalFilename: originalFilename)
-            return ExportReport(directory: url, count: 1)
-        }
-        exportTask = task
-        defer { isExporting = false; exportTask = nil }
-        do { _ = try await task.value; if !quitting { status = "已导出 \(url.lastPathComponent)" } }
-        catch { if !quitting { errorMessage = error.localizedDescription } }
-    }
-
-    func exportAll(_ ext: String) {
-        guard !isExporting, completed > 0 else { return }
-        NSApp.activate()
-        let panel = NSOpenPanel()
-        panel.canChooseFiles = false; panel.canChooseDirectories = true; panel.canCreateDirectories = true
-        panel.prompt = "导出到这里"
-        panel.message = "将在此创建一个新文件夹，同名文档自动编号。"
-        panel.begin { [weak self] response in
-            guard response == .OK, let folder = panel.url else { return }
-            Task { await self?.exportBatch(to: folder, extension: ext) }
-        }
-    }
-
-    func exportBatch(to folder: URL, extension ext: String) async {
-        guard !isExporting else { return }
-        let files = jobs.filter(\.ready).compactMap { job -> ExportFile? in
-            guard let output = job.output else { return nil }
-            return ExportFile(source: output.appendingPathComponent("document." + ext),
-                              name: job.source.deletingPathExtension().lastPathComponent + "." + ext,
-                              originalFilename: job.source.lastPathComponent)
-        }
-        isExporting = true
-        let task = Task.detached(priority: .utility) { try FileOperations.exportBatch(files, to: folder) }
-        exportTask = task
-        defer { isExporting = false; exportTask = nil }
+    func openResults(_ folder: URL? = nil) {
         do {
-            let report = try await task.value
-            guard !quitting else { return }
-            status = "已导出 \(report.count) 份到 \(report.directory.lastPathComponent)"
-            if !report.errors.isEmpty { errorMessage = report.errors.prefix(12).joined(separator: "\n") }
-        } catch { if !quitting { errorMessage = error.localizedDescription } }
+            try FileManager.default.createDirectory(at: results, withIntermediateDirectories: true,
+                                                    attributes: [.posixPermissions: 0o700])
+            if !NSWorkspace.shared.open(folder ?? results) { throw ClientError("无法打开结果文件夹。") }
+        } catch { errorMessage = error.localizedDescription }
     }
 
-    func shutdown() async {
-        quitting = true; cancelled = true
+    func saveResult(_ id: UUID) {
+        guard let index = indices[id], jobs[index].ready, jobs[index].savedOutput == nil,
+              !jobs[index].saving, jobs[index].output != nil else { return }
+        jobs[index].saving = true; jobs[index].saveError = nil
+        pendingSaves.append(id)
+        guard saveTask == nil else { return }
+        isSaving = true
+        saveTask = Task {
+            defer {
+                isSaving = false; saveTask = nil
+                if !isBusy && !quitting {
+                    status = jobs.contains(where: { $0.saveError != nil })
+                        ? "部分结果保存失败，请在文档中重试保存" : "结果已自动保存到 Docling_Mac"
+                }
+            }
+            while !pendingSaves.isEmpty {
+                let id = pendingSaves.removeFirst()
+                guard let index = indices[id], let output = jobs[index].output else { continue }
+                let source = jobs[index].source
+                do {
+                    let folder = try await library.save(output: output, source: source)
+                    if let current = indices[id] { jobs[current].savedOutput = folder }
+                } catch {
+                    if let current = indices[id] { jobs[current].saveError = error.localizedDescription }
+                }
+                if let current = indices[id] { jobs[current].saving = false }
+            }
+        }
+    }
+
+    @discardableResult
+    func shutdown() async -> Bool {
+        quitting = true; cancelled = true; queuePaused = true
         reuseNoticeTask?.cancel(); reuseNoticeTask = nil
         let scans = Array(intakeTasks.values)
         for task in scans { task.cancel() }
-        exportTask?.cancel()
+        previewTask?.cancel()
         await runner.stopAndWait()
         for task in scans { _ = await task.value }
-        if let exportTask { _ = try? await exportTask.value }
+        // Completed conversions are durable before cache/session cleanup, even on quit.
+        if let saveTask { await saveTask.value }
+        if let previewTask { _ = try? await previewTask.value }
+        let unsaved = jobs.filter { $0.ready && $0.savedOutput == nil }
+        guard unsaved.isEmpty else {
+            quitting = false
+            errorMessage = "还有 \(unsaved.count) 份结果未能保存，已取消退出。请检查 Docling_Mac 文件夹和磁盘空间，再点击文档中的「重试保存」。临时结果仍保留，可以继续查看。"
+            return false
+        }
         do { try await pruneCache() }
         catch { NSLog("Docling cache cleanup: %@", error.localizedDescription) }
         try? FileManager.default.removeItem(at: session)
+        return true
     }
 }
 

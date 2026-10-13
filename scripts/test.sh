@@ -15,5 +15,8 @@ swiftc -parse-as-library Sources/DoclingMac/FileDropWebView.swift Tests/DropChec
 swiftc -parse-as-library Sources/DoclingMac/ProcessRunner.swift Sources/DoclingMac/FileOperations.swift Sources/DoclingMac/AppModel.swift \
   Tests/QueueFlowChecks.swift -o .build/checks/queue-flow-checks
 .build/checks/queue-flow-checks
+swiftc -parse-as-library Sources/DoclingMac/ProcessRunner.swift Sources/DoclingMac/FileOperations.swift Sources/DoclingMac/AppModel.swift \
+  Tests/StorageChecks.swift -o .build/checks/storage-checks
+.build/checks/storage-checks
 engine_python="$HOME/Library/Application Support/Docling Mac/runtime/bin/python3"
 "$engine_python" -m unittest discover -s Tests -p 'test_*.py' -v
