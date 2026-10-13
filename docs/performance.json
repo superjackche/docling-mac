@@ -1,0 +1,80 @@
+{
+  "date": "2026-10-13",
+  "platform": "Apple Silicon, macOS 27.2, Python 3.12.13, Docling 2.138.0",
+  "conditions": "Warm model cache, HF_HUB_OFFLINE=1; cold or warm result cache as labeled; peak RSS is worker, not whole desktop",
+  "configuration": {
+    "cpu_threads": 2,
+    "pipeline_batch_size": 2,
+    "pipeline_queue_size": 4,
+    "cache_max_bytes": 536870912,
+    "cache_max_age_days": 14,
+    "preview_max_bytes": 524288,
+    "log_max_bytes": 32768
+  },
+  "fixtures": [
+    {
+      "name": "native.pdf",
+      "sha256": "ecc45ec50977e4cd41628726cff9723a802f05e853068ef9c0c930aa4f37af34"
+    },
+    {
+      "name": "sample.pdf",
+      "sha256": "3846cddc6c4e36fbd8c9db46932bc81f2a197f919663b003b97e05070ea6132f"
+    },
+    {
+      "name": "sample.png",
+      "sha256": "d15171f0f4650fce914f28a3f4fa45338bee20259bb3bae1d9cf8020deda22db"
+    }
+  ],
+  "three_documents": {
+    "baseline_seconds": 17.79101066601288,
+    "baseline_peak_rss_mib": 960.7,
+    "runs": [
+      {
+        "name": "cold-results",
+        "wall_seconds": 11.690734040996176,
+        "peak_rss_bytes": 815693824,
+        "returncode": 0,
+        "completed": 3,
+        "cache_hits": 0,
+        "markdown_matches_baseline": [
+          true,
+          true,
+          true
+        ]
+      },
+      {
+        "name": "cached-results",
+        "wall_seconds": 0.06421625000075437,
+        "peak_rss_bytes": 22904832,
+        "returncode": 0,
+        "completed": 3,
+        "cache_hits": 3,
+        "markdown_matches_baseline": [
+          true,
+          true,
+          true
+        ]
+      }
+    ]
+  },
+  "html_stress": {
+    "status": "passed",
+    "files": 100,
+    "unique_contents": 20,
+    "format": "HTML",
+    "hf_hub_offline": true,
+    "first_batch": {
+      "wall_seconds": 3.10070729200379,
+      "completed": 100,
+      "cache_hits": 80
+    },
+    "cached_batch": {
+      "wall_seconds": 0.11419162500533275,
+      "completed": 100,
+      "cache_hits": 100,
+      "converter_load_status_events": 0
+    },
+    "worker_sha256": "f5fd1b8f75183e1bc9bb3aa038e00190c9d6877f99603c9b5cc46279ccc7cb2f",
+    "engine_lock_sha256": "7aac6d8e874370d563564bb1810842304a1536338497570caacc9ef14d4e32fc"
+  }
+}

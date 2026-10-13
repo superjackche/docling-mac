@@ -1,0 +1,9 @@
+{
+  "cpu_threads": 2,
+  "pipeline_batch_size": 2,
+  "pipeline_queue_size": 4,
+  "cache_max_bytes": 536870912,
+  "cache_max_age_days": 14,
+  "preview_max_bytes": 524288,
+  "log_max_bytes": 32768
+}

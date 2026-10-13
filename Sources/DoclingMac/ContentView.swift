@@ -27,7 +27,14 @@ struct ContentView: View {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button { model.chooseFiles() } label: { Label("添加文档", systemImage: "plus") }
                     .help("添加文档 ⌘O")
-                if model.isBusy && !model.installing {
+                Menu {
+                    Button("全部导出为 Markdown") { model.exportAll("md") }
+                    Button("全部导出为 JSON") { model.exportAll("json") }
+                    Button("全部导出为 HTML") { model.exportAll("html") }
+                } label: { Label("批量导出", systemImage: "square.and.arrow.up.on.square") }
+                .disabled(model.completed == 0 || model.isExporting)
+                Button { model.showSettings = true } label: { Label("引擎与模型", systemImage: "gearshape") }
+                if model.isBusy {
                     Button { model.cancel() } label: { Label("停止", systemImage: "stop.fill") }
                 } else {
                     Button { Task { await model.start() } } label: {
@@ -39,7 +46,7 @@ struct ContentView: View {
             }
         }
         .dropDestination(for: URL.self) { urls, _ in
-            model.add(urls); return !urls.isEmpty
+            Task { await model.add(urls) }; return !urls.isEmpty
         } isTargeted: { targeted = $0 }
         .overlay {
             if targeted {
@@ -49,9 +56,9 @@ struct ContentView: View {
         }
         .onChange(of: model.selection) { _, _ in model.loadPreview() }
         .fileImporter(isPresented: $model.importing,
-                      allowedContentTypes: AppModel.extensions.compactMap { UTType(filenameExtension: $0) },
+                      allowedContentTypes: AppModel.extensions.compactMap { UTType(filenameExtension: $0) } + [.folder],
                       allowsMultipleSelection: true) { result in
-            do { model.add(try result.get()) }
+            do { let urls = try result.get(); Task { await model.add(urls) } }
             catch { model.errorMessage = error.localizedDescription }
         }
         .alert("操作未完成", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
@@ -68,6 +75,7 @@ struct ContentView: View {
                 }.padding(12).background(.quaternary.opacity(0.5)).clipShape(RoundedRectangle(cornerRadius: 10))
             }.padding(24).frame(width: 720, height: 480)
         }
+        .sheet(isPresented: $model.showSettings) { EngineSettings(model: model) }
     }
 
     private var sidebar: some View {
@@ -76,11 +84,14 @@ struct ContentView: View {
                 Text("文档").font(.system(size: 12, weight: .semibold))
                 Spacer()
                 Text("\(model.jobs.count)").font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
+                Menu {
+                    Button("清空队列") { model.clearQueue() }.disabled(model.isBusy || model.isImporting || model.isExporting)
+                } label: { Image(systemName: "ellipsis.circle") }.menuStyle(.borderlessButton).fixedSize()
             }.padding(.horizontal, 20).padding(.top, 23).padding(.bottom, 12)
             if model.jobs.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
                     Text("从一份文档开始").font(.system(size: 13, weight: .medium))
-                    Text("添加的文件会显示在这里。\n支持一次拖入多个文档。")
+                    Text("添加的文件会显示在这里。\n可以拖入多个文档或文件夹。")
                         .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
                 }.padding(20)
                 Spacer()
@@ -96,7 +107,7 @@ struct ContentView: View {
                                 HStack(spacing: 5) {
                                     if job.state == .running { ProgressView().controlSize(.mini) }
                                     else { Circle().fill(stateColor(job.state)).frame(width: 5, height: 5) }
-                                    Text(job.state.rawValue).font(.system(size: 10)).foregroundStyle(.secondary)
+                                    Text(job.cached ? "已复用相同内容" : job.state.rawValue).font(.system(size: 10)).foregroundStyle(.secondary)
                                 }
                             }
                         }.padding(.vertical, 7).tag(job.id)
@@ -179,7 +190,7 @@ struct ContentView: View {
             HStack(alignment: .center, spacing: 14) {
                 VStack(alignment: .leading, spacing: 5) {
                     Text(job.source.lastPathComponent).font(.system(size: 16, weight: .semibold)).lineLimit(1)
-                    Text(job.ready ? "\(job.pages > 0 ? "\(job.pages) 页 · " : "")\(String(format: "%.1f", job.seconds)) 秒 · 本地转换" : job.state.rawValue)
+                    Text(job.ready ? "\(job.pages > 0 ? "\(job.pages) 页 · " : "")\(String(format: "%.1f", job.seconds)) 秒 · \(job.cached ? "复用缓存" : "本地转换")" : job.state.rawValue)
                         .font(.system(size: 11)).foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -191,6 +202,7 @@ struct ContentView: View {
                         Button("HTML (.html)") { model.export("html") }
                     } label: { Label("导出", systemImage: "square.and.arrow.up") }
                     .menuStyle(.borderlessButton).fixedSize()
+                    .disabled(model.isExporting)
                 }
             }.padding(24)
             Divider()
@@ -207,7 +219,11 @@ struct ContentView: View {
                     Spacer()
                     Text("图片嵌入导出文件").font(.system(size: 10)).foregroundStyle(.tertiary)
                 }.padding(.horizontal, 24).padding(.vertical, 12)
-                if previewMode == 0 { DocumentPreview(html: model.html) }
+                if model.previewLimited {
+                    Text("大文档显示有限预览；复制与导出保留完整内容。")
+                        .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 24).padding(.bottom, 8)
+                }
+                if previewMode == 0 && !model.html.isEmpty { DocumentPreview(html: model.html) }
                 else {
                     ScrollView([.vertical, .horizontal]) {
                         Text(model.markdown).font(.system(size: 12, design: .monospaced)).textSelection(.enabled)
@@ -244,9 +260,9 @@ struct ContentView: View {
 
     private var footer: some View {
         HStack(spacing: 7) {
-            if model.isBusy { ProgressView().controlSize(.mini) }
+            if model.isBusy || model.isImporting || model.isExporting { ProgressView().controlSize(.mini) }
             else { Circle().fill(model.engineReady ? accent : .secondary).frame(width: 5, height: 5) }
-            Text(model.status).lineLimit(1)
+            Text(model.isImporting ? "正在后台整理文件…" : model.isExporting ? "正在后台导出…" : model.status).lineLimit(1)
             Spacer()
             if model.waiting > 0 { Text("\(model.waiting) 份待处理").foregroundStyle(.secondary) }
             Button { model.showLogs = true } label: { Image(systemName: "terminal") }.buttonStyle(.plain).help("运行日志")
