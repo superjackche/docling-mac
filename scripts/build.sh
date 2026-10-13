@@ -1,6 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 cd "$(dirname "$0")/.."
+host_version="$(sw_vers -productVersion)"
+if (( ${host_version%%.*} < 26 )); then
+  printf '%s\n' 'Building the layered icon requires a macOS 26+ host. The packaged app still runs on macOS 14+.' >&2
+  exit 1
+fi
 sdk_version="$(xcrun --sdk macosx --show-sdk-version)"
 if (( ${sdk_version%%.*} < 26 )); then
   printf '%s\n' 'Docling Mac requires Xcode 26+ with the macOS 26+ SDK. The app still runs on macOS 14+.' >&2

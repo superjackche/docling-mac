@@ -8,7 +8,7 @@ Final generation prompt:
 
 ## Liquid Glass icon (v0.4)
 
-`AppIcon.icon/` is the editable Apple Icon Composer source. `Assets/Document.png` was edited from the original generated icon with the built-in `image_gen` tool. The original stays intact for macOS 14/15. The transparent foreground and native warm ivory background are composed by `actool`; the system supplies glass lighting, shadows, dark and tinted renditions. No icon cache or system appearance settings are modified.
+`AppIcon.icon/` is the editable Apple Icon Composer source. `Assets/Document.png` was edited from the original generated icon with the built-in `image_gen` tool. The original source stays intact, and the package also includes a traditional `.icns` compatibility icon. Older macOS may use a flattened rendition from the catalog. The transparent foreground and native warm ivory background are composed by `actool`; the system supplies glass lighting, shadows, dark and tinted renditions. No icon cache or system appearance settings are modified.
 
 Final edit prompt (built-in image generation, transparent background):
 
