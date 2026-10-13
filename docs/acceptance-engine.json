@@ -1,148 +1,312 @@
 {
-  "date": "2026-10-13",
-  "platform": "macOS 27.2, Apple Silicon",
-  "docling": "2.138.0",
-  "lock_sha256": "7aac6d8e874370d563564bb1810842304a1536338497570caacc9ef14d4e32fc",
-  "checks": [
+  "started_at": "20261013T070346.415411Z",
+  "finished_at": "2026-10-13T07:04:14.862618+00:00",
+  "platform": "macOS-27.2-arm64-arm-64bit",
+  "versions": {
+    "docling-slim": "2.138.0",
+    "docling-core": "2.101.1",
+    "python-docx": "1.2.0",
+    "python-pptx": "1.0.2",
+    "openpyxl": "3.1.5",
+    "Pillow": "12.3.0"
+  },
+  "hf_hub_offline": true,
+  "status": "passed",
+  "results": [
     {
       "format": "docx",
-      "seconds": 1.748,
-      "offline": false,
-      "markdown_verified": true,
+      "source": {
+        "path": "sample.docx",
+        "bytes": 36861,
+        "sha256": "dfb905313db9b9209f7bb543d82bc6f2f7238cfd14da5ad3337d514228092b20"
+      },
+      "expected_text": [
+        "Docling Mac acceptance",
+        "文档转换测试",
+        "本地处理保护隐私"
+      ],
+      "ocr": false,
+      "returncode": 0,
+      "elapsed_seconds": 3.393,
+      "events": [
+        {
+          "event": "status",
+          "id": null,
+          "message": "正在解析文档…"
+        },
+        {
+          "event": "complete",
+          "id": null,
+          "partial": false,
+          "warnings": [],
+          "pages": 0
+        }
+      ],
+      "markdown_text_verified": true,
       "exports": [
         {
+          "path": "document.md",
           "bytes": 146,
           "sha256": "8c86af0c825209a2cb24b33b915c2cb8f598d82a7b5f807a7d4ad280f9ae4a4a"
         },
         {
+          "path": "document.html",
           "bytes": 743,
           "sha256": "bb9378afd345eb18d4d74dac2443d9d13daa60e70381bdbc0ccc6d35b4372846"
         },
         {
-          "bytes": 5740,
-          "sha256": "15bc60f82ebcc9518941591919509451f88cdef882e9148d2429937c6d4cbed5"
+          "path": "document.json",
+          "bytes": 5739,
+          "sha256": "523b46e3ed1c026950a4760fc8ea00dacb651315c15cb50910a3ec2c4f24f3c1"
         }
-      ]
+      ],
+      "status": "passed"
     },
     {
       "format": "pptx",
-      "seconds": 1.699,
-      "offline": false,
-      "markdown_verified": true,
+      "source": {
+        "path": "sample.pptx",
+        "bytes": 28358,
+        "sha256": "d6876bfdd1f4d890e04eb2904f4d83b52d3bf28615d90d3e0e419078d3863f72"
+      },
+      "expected_text": [
+        "Docling Mac acceptance",
+        "文档转换测试",
+        "本地处理保护隐私"
+      ],
+      "ocr": false,
+      "returncode": 0,
+      "elapsed_seconds": 2.287,
+      "events": [
+        {
+          "event": "status",
+          "id": null,
+          "message": "正在解析文档…"
+        },
+        {
+          "event": "complete",
+          "id": null,
+          "partial": false,
+          "warnings": [],
+          "pages": 1
+        }
+      ],
+      "markdown_text_verified": true,
       "exports": [
         {
+          "path": "document.md",
           "bytes": 68,
           "sha256": "f85b0f8780f13f0529856b830b946be41b7de153f4d9c17c963a901e68b0d82f"
         },
         {
+          "path": "document.html",
           "bytes": 633,
           "sha256": "80393558929d5d1d4ceae7149e508ed6ea0d87394b7cb35884d43f365e94960b"
         },
         {
-          "bytes": 3021,
-          "sha256": "e150365797e673c331c45cff49286c2b44ae2c0165f4268a8e50040541b77bd2"
+          "path": "document.json",
+          "bytes": 3020,
+          "sha256": "250681c8dc328da3d27f5b28dbfdfbf17dcaec4b2136bbbb744b202664cae1ad"
         }
-      ]
+      ],
+      "status": "passed"
     },
     {
       "format": "xlsx",
-      "seconds": 1.702,
-      "offline": false,
-      "markdown_verified": true,
+      "source": {
+        "path": "sample.xlsx",
+        "bytes": 4928,
+        "sha256": "2b039d122f4544c136d681704d212f832927a821bb0de4120c3424c71f587b14"
+      },
+      "expected_text": [
+        "Docling Mac acceptance",
+        "文档转换测试",
+        "本地处理保护隐私"
+      ],
+      "ocr": false,
+      "returncode": 0,
+      "elapsed_seconds": 2.419,
+      "events": [
+        {
+          "event": "status",
+          "id": null,
+          "message": "正在解析文档…"
+        },
+        {
+          "event": "complete",
+          "id": null,
+          "partial": false,
+          "warnings": [],
+          "pages": 1
+        }
+      ],
+      "markdown_text_verified": true,
       "exports": [
         {
+          "path": "document.md",
           "bytes": 143,
           "sha256": "3dcd05869f55f7ed9ad558bf88bf223dcdd4ddafa2d545bcb42041dfbaf3ae27"
         },
         {
+          "path": "document.html",
           "bytes": 694,
           "sha256": "7dfd835e756a22fbcef3eaf6d7d78c8a1f204d121a61e64d91b4903decab664b"
         },
         {
-          "bytes": 4516,
-          "sha256": "0be71c336fe9ac01ec8ed14af5a7a7118bc01dc2080898c1f8f06141d73afb99"
+          "path": "document.json",
+          "bytes": 4514,
+          "sha256": "81bd3e421c34dc40f01143a69fe2730c4c0d5b45463c6085e194e41e3d4c3036"
         }
-      ]
+      ],
+      "status": "passed"
     },
     {
       "format": "png",
-      "seconds": 35.579,
-      "offline": false,
-      "markdown_verified": true,
+      "source": {
+        "path": "sample.png",
+        "bytes": 48283,
+        "sha256": "d15171f0f4650fce914f28a3f4fa45338bee20259bb3bae1d9cf8020deda22db"
+      },
+      "expected_text": [
+        "Docling Mac acceptance",
+        "文档转换测试",
+        "本地处理保护隐私"
+      ],
+      "ocr": true,
+      "returncode": 0,
+      "elapsed_seconds": 6.876,
+      "events": [
+        {
+          "event": "status",
+          "id": null,
+          "message": "正在解析文档…"
+        },
+        {
+          "event": "complete",
+          "id": null,
+          "partial": false,
+          "warnings": [],
+          "pages": 1
+        }
+      ],
+      "markdown_text_verified": true,
       "exports": [
         {
+          "path": "document.md",
           "bytes": 71,
           "sha256": "2948f18c6e2607a6055f58cd2fcffd44bff7d1e76ac4320d8c984cb6ac91b8ed"
         },
         {
+          "path": "document.html",
           "bytes": 635,
           "sha256": "88031f13de6d3d22b16e9777b7281a81e45433c0942590fc4f078fd430c988da"
         },
         {
+          "path": "document.json",
           "bytes": 2802,
           "sha256": "9ab9c7c381f5c6ca76018685f4e792131067cf3c438d8dcd0ee3e626b47000ff"
         }
-      ]
+      ],
+      "status": "passed"
     },
     {
       "format": "pdf",
-      "seconds": 7.003,
-      "offline": false,
-      "markdown_verified": true,
+      "source": {
+        "path": "sample.pdf",
+        "bytes": 58868,
+        "sha256": "a59f73382011eb3cea3b5d82bf75456f0fcaee4c5436c1675678b81779e6d9f0"
+      },
+      "expected_text": [
+        "Docling Mac acceptance",
+        "文档转换测试",
+        "本地处理保护隐私"
+      ],
+      "ocr": true,
+      "returncode": 0,
+      "elapsed_seconds": 6.931,
+      "events": [
+        {
+          "event": "status",
+          "id": null,
+          "message": "正在解析文档…"
+        },
+        {
+          "event": "complete",
+          "id": null,
+          "partial": false,
+          "warnings": [],
+          "pages": 1
+        }
+      ],
+      "markdown_text_verified": true,
       "exports": [
         {
+          "path": "document.md",
           "bytes": 71,
           "sha256": "2948f18c6e2607a6055f58cd2fcffd44bff7d1e76ac4320d8c984cb6ac91b8ed"
         },
         {
+          "path": "document.html",
           "bytes": 635,
           "sha256": "88031f13de6d3d22b16e9777b7281a81e45433c0942590fc4f078fd430c988da"
         },
         {
-          "bytes": 2802,
-          "sha256": "77b6fd4c3e1eae310490fa98d8e358ad1cc120690644debd0564d877ce1179d1"
+          "path": "document.json",
+          "bytes": 2801,
+          "sha256": "9be9583f7be7613d7ba472c060b9310e9e348977a24fe23653dca48ad5402955"
         }
-      ]
-    },
-    {
-      "format": "pdf",
-      "seconds": 6.218,
-      "offline": true,
-      "markdown_verified": true,
-      "exports": [
-        {
-          "bytes": 71,
-          "sha256": "2948f18c6e2607a6055f58cd2fcffd44bff7d1e76ac4320d8c984cb6ac91b8ed"
-        },
-        {
-          "bytes": 635,
-          "sha256": "88031f13de6d3d22b16e9777b7281a81e45433c0942590fc4f078fd430c988da"
-        },
-        {
-          "bytes": 2802,
-          "sha256": "3e85dc4f7217b7d5f75c115e20b0e627590595cad76d32fe9c551d02a77811d7"
-        }
-      ]
+      ],
+      "status": "passed"
     },
     {
       "format": "native-pdf",
-      "seconds": 4.623,
-      "offline": true,
-      "markdown_verified": true,
+      "source": {
+        "path": "native.pdf",
+        "bytes": 17560,
+        "sha256": "445ad40909225fb3dd154fc66ee1a7bd70e468b9254d705513feb73bbc586bc6"
+      },
+      "expected_text": [
+        "Docling Mac PDF Check 1",
+        "Docling Mac PDF Check 2",
+        "Native PDF text remains searchable.",
+        "本地文档转换验收"
+      ],
+      "ocr": false,
+      "returncode": 0,
+      "elapsed_seconds": 6.037,
+      "events": [
+        {
+          "event": "status",
+          "id": null,
+          "message": "正在解析文档…"
+        },
+        {
+          "event": "complete",
+          "id": null,
+          "partial": false,
+          "warnings": [],
+          "pages": 2
+        }
+      ],
+      "markdown_text_verified": true,
       "exports": [
         {
+          "path": "document.md",
           "bytes": 280,
           "sha256": "6c8fd7d7ae2797da275d115c22bbe10905807c012f7f2955fb6d9c2b18881fd8"
         },
         {
+          "path": "document.html",
           "bytes": 861,
           "sha256": "f0089bcb0ac43ce92224baef521b7dc30ddbabe8f603be45511dc525ff4000d1"
         },
         {
-          "bytes": 5039,
-          "sha256": "fa8e3d8142de339efcad1c60b92e74c6338c6929fe81ee48f1e267803abde9d0"
+          "path": "document.json",
+          "bytes": 5038,
+          "sha256": "86eca1d6b569ac1199b5bdf5cbf6ce45e8f3557b1b18a1073affcd64bc06b252"
         }
-      ]
+      ],
+      "status": "passed"
     }
   ]
 }

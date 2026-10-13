@@ -1,12 +1,18 @@
 # Docling Mac
 
+[![macOS CI](https://github.com/superjackche/docling-mac/actions/workflows/ci.yml/badge.svg)](https://github.com/superjackche/docling-mac/actions/workflows/ci.yml)
+
 一个极简、原生的 macOS 文档转换工具。拖入文件或文件夹，在本机解析，预览并批量导出 Markdown、HTML、Docling JSON。
 
 基于 [Docling](https://github.com/docling-project/docling)，独立非官方客户端。SwiftUI / AppKit 界面，无第三方 Swift 包。客户端采用 [MIT](LICENSE) 协议。
 
 ## 使用
 
-需要 macOS 14+；已在 Apple Silicon Mac 上验收，Intel 未实机验证。
+需要 **Apple Silicon Mac（M 系列）和 macOS 14+**。当前锁定引擎不支持 Intel Mac。
+
+从 [GitHub Releases](https://github.com/superjackche/docling-mac/releases/latest) 下载 DMG，将应用拖到 Applications；也可解压 ZIP。安装包仅含约 3 MB 的客户端，解析环境与模型首次使用时单独下载。
+
+当前公开包采用 ad-hoc 签名，尚未做 Developer ID 公证。macOS 可能阻止首次打开；确认来源后可按 [Apple 的说明](https://support.apple.com/102445) 在「系统设置 → 隐私与安全性」中允许打开。
 
 1. 安装 [uv](https://docs.astral.sh/uv/getting-started/installation/)：`brew install uv`。
 2. 打开 `Docling Mac.app`，点击「准备本地引擎」。应用安装锁定的 Python 3.12 与依赖。
@@ -55,7 +61,7 @@
 open 'dist/Docling Mac.app'
 ```
 
-把 `.app` 拖到「应用程序」即可。本地构建采用 ad-hoc 签名；公开分发前可使用自己的 Developer ID 签名并公证。仓库不包含签名凭据。
+运行 `./scripts/package.sh` 可本地编译并生成 DMG、ZIP 和 SHA-256 校验文件。DMG 内含 Applications 快捷方式。仓库不包含签名凭据。
 
 通过应用准备引擎后运行：
 
@@ -63,5 +69,7 @@ open 'dist/Docling Mac.app'
 ./scripts/test.sh
 "$HOME/Library/Application Support/Docling Mac/runtime/bin/python3" scripts/verify-engine.py
 ```
+
+无界面环境可先运行 `./scripts/prepare-engine.sh`。GitHub Actions 在 macOS 15 ARM64 / Xcode 16.4 上准备锁定环境，运行 Swift 与 Python 检查，下载并离线验证模型，执行六种真实格式转换，再构建并校验安装包。`main` 推送、pull request、版本 tag 和手动触发均运行；结果与安装包保留为 CI artifacts。
 
 测试涵盖队列、进程取消、缓存失效、并发互斥、模型验证和真实格式。范围与结果见 [docs/ACCEPTANCE.md](docs/ACCEPTANCE.md)。AI 绘制图标原图与提示词见 [Assets/README.md](Assets/README.md)。第三方包与模型保留各自许可证，见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)。Docling 名称属于上游项目，本应用不代表上游官方产品。

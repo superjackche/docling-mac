@@ -1,0 +1,77 @@
+name: macOS CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    name: Build, test and package (Apple Silicon)
+    runs-on: macos-15
+    timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_16.4.app/Contents/Developer
+      HF_HUB_DISABLE_TELEMETRY: '1'
+      HF_HUB_OFFLINE: '1'
+      PYTHONDONTWRITEBYTECODE: '1'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: '0.11.18'
+          enable-cache: true
+          cache-dependency-glob: Backend/uv.lock
+      - name: Prepare locked engine
+        run: |
+          test "$(uname -m)" = arm64
+          swift --version
+          mkdir -p "$HOME/.local/bin"
+          ln -s "$(command -v uv)" "$HOME/.local/bin/uv"
+          ./scripts/prepare-engine.sh
+      - name: Client, lifecycle and cache checks
+        run: ./scripts/test.sh
+      - name: Prepare and verify PDF models
+        env:
+          HF_HUB_OFFLINE: '0'
+        run: |
+          export HF_HOME="$HOME/Library/Application Support/Docling Mac/models"
+          "$HOME/Library/Application Support/Docling Mac/runtime/bin/python3" Backend/models.py --prepare --state "$HOME/Library/Application Support/Docling Mac/models.json"
+      - name: Real Office, PDF and Apple OCR acceptance (offline)
+        run: '"$HOME/Library/Application Support/Docling Mac/runtime/bin/python3" scripts/verify-engine.py'
+      - name: Build and verify DMG and ZIP
+        run: ./scripts/package.sh
+      - name: Upload packages
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: Docling-Mac-arm64
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*-SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
+      - name: Upload acceptance evidence
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: acceptance-evidence
+          path: |
+            .build/engine-acceptance.json
+            .build/batch-stress.json
+            .build/acceptance-fixtures/**/receipt.json
+            .build/acceptance-fixtures/**/*.log
+          include-hidden-files: true
+          if-no-files-found: warn
+          retention-days: 14

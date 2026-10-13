@@ -1,10 +1,10 @@
-# 0.2.0 验收记录
+# 0.2.1 验收记录
 
 验收日期：2026-10-13（Asia/Singapore）。环境：Apple Silicon、macOS 27.2、Swift 6.4、Python 3.12.13、Docling 2.138.0。这里只记录本次实际检查范围，不代表任意文档都能无损识别。
 
 ## 自动检查
 
-`./scripts/test.sh` 覆盖 21 组 Swift 检查（16 组客户端、5 组导出）和 28 项 Python 测试，全部通过。最终构建后分段执行同一测试脚本中的命令，保留实际输出。
+`./scripts/test.sh` 覆盖 24 组 Swift 检查（16 组客户端、5 组导出、3 组原生拖放数据）和 28 项 Python 测试，全部通过。发布前已在本机完整执行脚本，保留实际输出。原生拖放数据检查覆盖多个文件及目录、中文路径、拒绝远端 URL 和伪装成本地路径的纯文本。
 
 - 参数按原样传给子进程，中文、空格、shell 特殊字符不会被执行；保留非零退出码。
 - 取消终止子进程；可执行文件缺失正确报错。
@@ -32,23 +32,20 @@
 
 性能样本、资源边界与测量条件见 [PERFORMANCE.md](PERFORMANCE.md)。
 
-## 真实格式（0.1 基线与 0.2 复核）
+## 真实格式
 
-0.1 基线每项使用脚本现场生成的文档，核对 Markdown 中确有指定中英文内容，三个导出文件非空，JSON schema 为 DoclingDocument。结果与导出哈希见 [acceptance-engine.json](acceptance-engine.json)。
+发布前重新生成并转换以下六种样本，全部使用 `HF_HUB_OFFLINE=1`。每项核对 Markdown 中的指定中英文内容、三种导出非空及 DoclingDocument schema，原生 PDF 另核对两页完整。结果与哈希见 [acceptance-engine.json](acceptance-engine.json)。
 
-| 输入 | 条件 | 结果 |
+| 输入 | 条件 | 本机结果 |
 | --- | --- | --- |
-| DOCX | 标题、正文、表格 | 通过 |
-| PPTX | 中英文幻灯片 | 通过 |
-| XLSX | 中英文表格 | 通过 |
-| PNG | 中英文 Apple OCR | 通过 |
-| 扫描 PDF | 图像页面，开启 OCR | 通过 |
-| 扫描 PDF | 模型缓存后，HF_HUB_OFFLINE=1 | 通过，约 6.2 秒 |
-| 原生 PDF | 两页中英文，关闭 OCR，HF_HUB_OFFLINE=1 | 通过，约 4.6 秒，页数为 2 |
+| DOCX | 标题、正文、表格 | 通过，3.39 秒 |
+| PPTX | 中英文幻灯片 | 通过，2.29 秒 |
+| XLSX | 中英文表格 | 通过，2.42 秒 |
+| PNG | 中英文 Apple OCR | 通过，6.88 秒 |
+| 扫描 PDF | 图像页面，开启 OCR | 通过，6.93 秒 |
+| 原生 PDF | 两页中英文，关闭 OCR | 通过，6.04 秒 |
 
-0.2 再次用这组原生 PDF、扫描 PDF 与 PNG 完成三文件离线批次，与旧版 Markdown 逐字节一致。Office 基线输出记录沿用，未声称本轮再次逐项执行所有 Office 格式。
-
-离线模式验收通过 Hugging Face 的离线开关完成，没有更改本机网络。原始样本、日志和逐轮回执保留在本机 `.build/acceptance-fixtures/`，可由 `scripts/verify-engine.py` 再生。首次扫描测试发现缺少 OpenCV，补入上游官方 extra 后通过。
+离线模式通过 Hugging Face 离线开关验收，没有更改本机网络。原始样本、日志和逐轮回执保留在本机 `.build/acceptance-fixtures/`，可由 `scripts/verify-engine.py` 再生。
 
 ## 应用窗口
 
@@ -56,12 +53,27 @@
 
 0.2 在最终构建的原生窗口中，通过文件选择器加入整个测试文件夹（含两个子文件夹、三个 HTML，其中两份内容相同），队列显示三份并完成转换。第二份明确显示「已复用相同内容」，底栏显示完成三份、一份复用、模型已释放。预览中的中文标题和表格正确。
 
-通过原生批量 JSON 导出菜单和目录选择器实际导出三份文件：`report.json`、`report (2).json`、`第三份.json`。重新解析落盘 JSON，核对 schema、来源文件名、完整表格均通过。窗口截图见 [ui-batch.png](ui-batch.png)。拖放入口与文件选择器使用相同的后台扫描逻辑，已完成千文件逻辑测试；跨窗口鼠标拖拽手势本轮未完成实操验收，不能将目录选择验收视为拖拽验收。
+通过原生批量 JSON 导出菜单和目录选择器实际导出三份文件：`report.json`、`report (2).json`、`第三份.json`。重新解析落盘 JSON，核对 schema、来源文件名、完整表格均通过。窗口截图见 [ui-batch.png](ui-batch.png)。
 
 设置页实际完成模型准备 / 离线加载验证，显示「PDF 模型已验证」；手动检查返回当前 2.138.0、上游 2.138.0。批量任务结束后，进程快照只有 GUI（RSS 42.8 MiB，CPU 0.0%），没有 worker / models Python 进程。此为空闲瞬时样本，不代表固定内存上限。
 
+## 真实跨窗口鼠标拖拽（0.2.1）
+
+用户授权使用 macOS CGEvent，实际从 Finder 多选测试文件及文件夹，按下鼠标、连续移动并在客户端释放；没有用文件选择器、URL 打开或直接调用队列方法代替。
+
+首次复现出 0.2.0 的问题：空窗口可以接收，HTML 预览区则由 WebKit 吞掉拖放，底栏仍正常。0.2.1 增加专用 WKWebView 拖放处理，将本地文件 URL 转交原有导入队列，保留预览与导航限制。
+
+修复后实际回归：
+
+1. 将一个 HTML 和两个子文件夹同时拖到空窗口，读取三个 HTML 文件，队列为 3。
+2. 转换完成并显示 HTML 预览后，将同一批再次拖到预览区，显示「已添加 0 份，跳过 3 份未改变的文件」，队列仍为 3。
+3. 在 Finder 批次中加入 `追加.md`，将四项再次拖到预览区，显示新增 1 份、跳过 3 份，队列为 4；原有预览未被导航替换。
+4. 转换追加文件，全部四份完成，三份复用缓存，批次结束释放模型。
+
+最终窗口见 [drag-drop.png](drag-drop.png)。三组 NSPasteboard 自动检查将文件 URL 接收规则纳入 CI。
+
 ## 构建与分发边界
 
-Release 构建成功；Info.plist 校验与 ad-hoc 代码签名校验通过。安装版与构建版逐文件 SHA-256 一致。Python 后台任务禁止向应用包生成字节码，避免运行后污染已签名资源。应用不捆绑 Python 环境或模型；首次使用由 uv 安装锁定依赖。本机已准备好运行环境与模型。
+Release 构建成功；Info.plist 校验与 ad-hoc 代码签名校验通过。安装版与构建版逐文件 SHA-256 一致。Python 后台任务禁止向应用包生成字节码，避免运行后污染已签名资源。本地 DMG 已只读挂载，核对应用签名、逐文件哈希和 Applications 快捷方式；ZIP 完整性校验通过，随包提供 SHA-256 文件。CI 工作流通过 actionlint 静态校验，云端运行记录可从仓库 Actions 查阅。应用不捆绑 Python 环境或模型；首次使用由 uv 安装锁定依赖。本机已准备好运行环境与模型。
 
-未在 Intel Mac 或更早 macOS 实机验收；未做 Developer ID 公证、App Store 提交或公开 GitHub 发布。复杂文档的识别质量仍须用户核对。
+当前发行包及锁定引擎只支持 Apple Silicon；本机实测 macOS 27.2，最低部署目标为 macOS 14。未做 Developer ID 公证或 App Store 提交。公开仓库和安装包入口见 [README](../README.md)。复杂文档的识别质量仍须用户核对。
