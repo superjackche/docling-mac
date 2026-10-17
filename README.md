@@ -1,6 +1,7 @@
 # Docling Mac
 
 [![macOS CI](https://github.com/superjackche/docling-mac/actions/workflows/ci.yml/badge.svg)](https://github.com/superjackche/docling-mac/actions/workflows/ci.yml)
+[![LINUX DO](https://img.shields.io/badge/LINUX%20DO-Community-FFB003)](https://linux.do/)
 
 一个极简、原生的 macOS 文档转换工具。拖入文件或文件夹，在本机解析，预览并自动保存 Markdown、HTML、Docling JSON。
 
