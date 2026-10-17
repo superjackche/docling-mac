@@ -31,19 +31,19 @@ struct ContentView: View {
         .tint(accent)
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
-                Button { model.chooseFiles() } label: { Label("添加文档", systemImage: "plus") }
-                    .help("添加文档 ⌘O")
-                Button { model.openResults() } label: { Label("结果文件夹", systemImage: "folder") }
-                    .help("打开 ~/Docling_Mac，转换结果自动保存于此")
+                Button { model.chooseFiles() } label: { Label(L10n.text("添加文档"), systemImage: "plus") }
+                    .help(L10n.text("添加文档 ⌘O"))
+                Button { model.openResults() } label: { Label(L10n.text("结果文件夹"), systemImage: "folder") }
+                    .help(L10n.text("打开 ~/Docling_Mac，转换结果自动保存于此"))
             }
             if #available(macOS 26, *) { ToolbarSpacer(.fixed, placement: .primaryAction) }
             ToolbarItemGroup(placement: .primaryAction) {
-                Button { model.showSettings = true } label: { Label("引擎与模型", systemImage: "gearshape") }
+                Button { model.showSettings = true } label: { Label(L10n.text("引擎与模型"), systemImage: "gearshape") }
                 if model.isBusy {
-                    Button { model.cancel() } label: { Label("停止", systemImage: "stop.fill") }
+                    Button { model.cancel() } label: { Label(L10n.text("停止"), systemImage: "stop.fill") }
                 } else if model.waiting > 0 && model.queuePaused {
                     Button { Task { await model.start() } } label: {
-                        Label("继续处理", systemImage: "play.fill")
+                        Label(L10n.text("继续处理"), systemImage: "play.fill")
                     }
                     .disabled(model.isBusy || !model.engineReady || model.waiting == 0)
                     .keyboardShortcut(.return, modifiers: .command)
@@ -61,8 +61,8 @@ struct ContentView: View {
                         .stroke(accent, style: StrokeStyle(lineWidth: 3, dash: [10, 6])).padding(10)
                     VStack(spacing: 14) {
                         Image(systemName: "tray.and.arrow.down.fill").font(.system(size: 44, weight: .light)).foregroundStyle(accent)
-                        Text("松开以添加文档").font(.system(size: 25, weight: .semibold))
-                        Text(model.queuePaused ? "加入暂停队列 · 继续后自动处理" : "多个文件或文件夹 · 放下即开始转换")
+                        Text(L10n.text("松开以添加文档")).font(.system(size: 25, weight: .semibold))
+                        Text(model.queuePaused ? L10n.text("加入暂停队列 · 继续后自动处理") : L10n.text("多个文件或文件夹 · 放下即开始转换"))
                             .font(.system(size: 13)).foregroundStyle(.secondary)
                     }
                     .foregroundStyle(.primary).padding(.horizontal, 36).padding(.vertical, 30)
@@ -78,20 +78,20 @@ struct ContentView: View {
             do { let urls = try result.get(); Task { await model.add(urls) } }
             catch { model.errorMessage = error.localizedDescription }
         }
-        .alert("操作未完成", isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
-            Button("好", role: .cancel) { model.errorMessage = nil }
+        .alert(L10n.text("操作未完成"), isPresented: Binding(get: { model.errorMessage != nil }, set: { if !$0 { model.errorMessage = nil } })) {
+            Button(L10n.text("好"), role: .cancel) { model.errorMessage = nil }
         } message: { Text(String((model.errorMessage ?? "").suffix(2200))) }
         .sheet(isPresented: $model.showLogs) {
             VStack(alignment: .leading, spacing: 16) {
                 HStack {
-                    Text("运行日志").font(.title2.bold())
+                    Text(L10n.text("运行日志")).font(.title2.bold())
                     Spacer()
-                    Button("完成") { model.showLogs = false }
+                    Button(L10n.text("完成")) { model.showLogs = false }
                         .modifier(AppActionStyle(prominent: true)).keyboardShortcut(.defaultAction)
                 }
-                Text("最近一次安装或转换的引擎输出。分享前请检查其中的文件路径。").foregroundStyle(.secondary)
+                Text(L10n.text("最近一次安装或转换的引擎输出。分享前请检查其中的文件路径。")).foregroundStyle(.secondary)
                 ScrollView {
-                    Text(model.logs.isEmpty ? "暂无日志" : model.logs)
+                    Text(model.logs.isEmpty ? L10n.text("暂无日志") : model.logs)
                         .font(.system(size: 11, design: .monospaced)).textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }.padding(12).background(.quaternary.opacity(0.5)).clipShape(RoundedRectangle(cornerRadius: 10))
@@ -103,27 +103,27 @@ struct ContentView: View {
     private var sidebar: some View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
-                Text("文档").font(.system(size: 12, weight: .semibold))
+                Text(L10n.text("文档")).font(.system(size: 12, weight: .semibold))
                 Spacer()
                 Text("\(model.jobs.count)").font(.system(size: 11, design: .monospaced)).foregroundStyle(.secondary)
                 Menu {
-                    Button("清空队列") { model.clearQueue() }.disabled(model.isBusy || model.isImporting || model.isSaving)
+                    Button(L10n.text("清空队列")) { model.clearQueue() }.disabled(model.isBusy || model.isImporting || model.isSaving)
                 } label: { Image(systemName: "ellipsis.circle") }
-                    .menuStyle(.borderlessButton).fixedSize().accessibilityLabel("队列操作")
+                    .menuStyle(.borderlessButton).fixedSize().accessibilityLabel(L10n.text("队列操作"))
             }.padding(.horizontal, 20).padding(.top, 23).padding(.bottom, 12)
             Button { model.chooseFiles() } label: {
                 VStack(spacing: 5) {
-                    Label("拖入文件或文件夹", systemImage: "tray.and.arrow.down")
+                    Label(L10n.text("拖入文件或文件夹"), systemImage: "tray.and.arrow.down")
                         .font(.system(size: 12, weight: .medium))
-                    Text("列表、预览和空白处均可放下").font(.system(size: 10)).foregroundStyle(Color.secondary)
+                    Text(L10n.text("列表、预览和空白处均可放下")).font(.system(size: 10)).foregroundStyle(Color.secondary)
                 }.frame(maxWidth: .infinity).padding(.vertical, 12)
                     .background(accent.opacity(0.04), in: RoundedRectangle(cornerRadius: 9))
                     .overlay(RoundedRectangle(cornerRadius: 9).stroke(accent.opacity(0.3), style: StrokeStyle(dash: [4, 4])))
             }.buttonStyle(.plain).foregroundStyle(accent).padding(.horizontal, 14).padding(.bottom, 8)
             if model.jobs.isEmpty {
                 VStack(alignment: .leading, spacing: 8) {
-                    Text("从一份文档开始").font(.system(size: 13, weight: .medium))
-                    Text("添加的文件会显示在这里。\n可以拖入多个文档或文件夹。")
+                    Text(L10n.text("从一份文档开始")).font(.system(size: 13, weight: .medium))
+                    Text(L10n.text("添加的文件会显示在这里。\n可以拖入多个文档或文件夹。"))
                         .font(.system(size: 12)).foregroundStyle(.secondary).lineSpacing(4)
                 }.padding(20)
                 Spacer()
@@ -139,15 +139,15 @@ struct ContentView: View {
                                 HStack(spacing: 5) {
                                     if job.state == .running || job.saving { ProgressView().controlSize(.mini) }
                                     else { Circle().fill(stateColor(job.state)).frame(width: 5, height: 5) }
-                                    Text(job.saveError != nil ? "保存失败" : job.saving ? "正在保存" : model.showsReuseNotice(job.id) ? "已复用" : job.state.rawValue)
+                                    Text(jobStatus(job))
                                         .font(.system(size: 10))
                                         .foregroundStyle(model.showsReuseNotice(job.id) ? accent : .secondary)
                                 }
                             }
                         }.padding(.vertical, 7).tag(job.id)
                         .contextMenu {
-                            Button("在 Finder 中显示") { NSWorkspace.shared.activateFileViewerSelecting([job.source]) }
-                            Button("从队列移除") { model.remove(job.id) }.disabled(model.isBusy || model.isSaving)
+                            Button(L10n.text("在 Finder 中显示")) { NSWorkspace.shared.activateFileViewerSelecting([job.source]) }
+                            Button(L10n.text("从队列移除")) { model.remove(job.id) }.disabled(model.isBusy || model.isSaving)
                         }
                     }
                 }.listStyle(.sidebar).scrollContentBackground(.hidden)
@@ -156,13 +156,13 @@ struct ContentView: View {
             VStack(alignment: .leading, spacing: 13) {
                 Toggle(isOn: $model.ocr) {
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("识别扫描件").font(.system(size: 12, weight: .medium))
-                        Text("Apple OCR · 中文与英文").font(.system(size: 10)).foregroundStyle(.secondary)
+                        Text(L10n.text("识别扫描件")).font(.system(size: 12, weight: .medium))
+                        Text(L10n.text("Apple OCR · 中文与英文")).font(.system(size: 10)).foregroundStyle(.secondary)
                     }
                 }.toggleStyle(.switch).controlSize(.small).disabled(model.isBusy)
                 HStack(spacing: 6) {
                     Image(systemName: "lock.shield").font(.system(size: 11))
-                    Text("本地处理，无需账号").font(.system(size: 11))
+                    Text(L10n.text("本地处理，无需账号")).font(.system(size: 11))
                 }.foregroundStyle(.secondary)
             }.padding(20)
             if !model.engineReady { setupCard.padding(.horizontal, 14).padding(.bottom, 16) }
@@ -173,15 +173,15 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 7) {
                 Image(systemName: "shippingbox")
-                Text(model.installing ? "正在准备引擎" : "首次使用").fontWeight(.semibold)
+                Text(model.installing ? L10n.text("正在准备引擎") : L10n.text("首次使用")).fontWeight(.semibold)
             }.font(.system(size: 12))
-            Text("安装一次解析环境。首次处理 PDF 时还会下载模型，请保持联网。")
+            Text(L10n.text("安装一次解析环境。首次处理 PDF 时还会下载模型，请保持联网。"))
                 .font(.system(size: 11)).foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             Button { Task { await model.install() } } label: {
-                HStack { if model.installing { ProgressView().controlSize(.small) }; Text(model.installing ? "安装中…" : "准备本地引擎") }
+                HStack { if model.installing { ProgressView().controlSize(.small) }; Text(model.installing ? L10n.text("安装中…") : L10n.text("准备本地引擎")) }
                     .frame(maxWidth: .infinity)
             }.modifier(AppActionStyle(prominent: true)).disabled(model.isBusy)
-            if model.installing { Button("查看安装进度") { model.showLogs = true }.font(.caption).buttonStyle(.plain) }
+            if model.installing { Button(L10n.text("查看安装进度")) { model.showLogs = true }.font(.caption).buttonStyle(.plain) }
         }.padding(14).background(accent.opacity(0.07)).clipShape(RoundedRectangle(cornerRadius: 12))
     }
 
@@ -197,16 +197,16 @@ struct ContentView: View {
                 Image(systemName: "arrow.down.right").font(.system(size: 12, weight: .semibold))
                     .padding(9).background(accent).foregroundStyle(.white).clipShape(Circle()).offset(x: 38, y: 40)
             }.frame(height: 135)
-            Text("拖入文件或文件夹").font(.system(size: 27, weight: .semibold)).padding(.top, 22)
-            Text("放下后自动转换，无需再点开始。\n结果自动保存到 ~/Docling_Mac。")
+            Text(L10n.text("拖入文件或文件夹")).font(.system(size: 27, weight: .semibold)).padding(.top, 22)
+            Text(L10n.text("放下后自动转换，无需再点开始。\n结果自动保存到 ~/Docling_Mac。"))
                 .font(.system(size: 13)).foregroundStyle(.secondary).lineSpacing(6)
                 .multilineTextAlignment(.center).padding(.top, 14)
             Button { model.chooseFiles() } label: {
-                Label("选择文档", systemImage: "plus").padding(.horizontal, 16).padding(.vertical, 6)
+                Label(L10n.text("选择文档"), systemImage: "plus").padding(.horizontal, 16).padding(.vertical, 6)
             }.modifier(AppActionStyle(prominent: true)).controlSize(.large).padding(.top, 27)
-            Text("整个内容区均可拖入 · ⌘O 批量选择").font(.system(size: 11)).foregroundStyle(.secondary).padding(.top, 12)
+            Text(L10n.text("整个内容区均可拖入 · ⌘O 批量选择")).font(.system(size: 11)).foregroundStyle(.secondary).padding(.top, 12)
             HStack(spacing: 9) {
-                ForEach(["PDF", "DOCX", "PPTX", "XLSX", "图片"], id: \.self) { item in
+                ForEach(["PDF", "DOCX", "PPTX", "XLSX", L10n.text("图片")], id: \.self) { item in
                     Text(item).font(.system(size: 9, weight: .medium, design: .monospaced))
                         .foregroundStyle(.secondary).padding(.horizontal, 8).padding(.vertical, 5)
                         .overlay(Capsule().stroke(.quaternary))
@@ -226,7 +226,7 @@ struct ContentView: View {
             HStack(alignment: .center, spacing: 14) {
                 VStack(alignment: .leading, spacing: 5) {
                     Text(job.source.lastPathComponent).font(.system(size: 16, weight: .semibold)).lineLimit(1)
-                    Text(job.ready ? "\(job.pages > 0 ? "\(job.pages) 页 · " : "")\(String(format: "%.1f", job.seconds)) 秒 · \(job.saveError != nil ? "保存失败" : job.saving ? "正在保存" : model.showsReuseNotice(job.id) ? "已复用" : job.state.rawValue)" : job.state.rawValue)
+                    Text(job.ready ? L10n.text("%@%@ 秒 · %@", String(describing: job.pages > 0 ? L10n.text("%@ 页 · ", String(job.pages)) : ""), String(describing: String(format: "%.1f", job.seconds)), jobStatus(job)) : L10n.text(job.state.rawValue))
                         .font(.system(size: 11)).foregroundStyle(.secondary)
                 }
                 Spacer()
@@ -234,9 +234,9 @@ struct ContentView: View {
                     GlassActions {
                         HStack(spacing: 8) {
                             Button { model.copyMarkdown() } label: { Image(systemName: "doc.on.doc") }
-                                .help("复制 Markdown").accessibilityLabel("复制 Markdown")
+                                .help(L10n.text("复制 Markdown")).accessibilityLabel(L10n.text("复制 Markdown"))
                             Button { model.openResults(job.savedOutput) } label: {
-                                Label("打开结果", systemImage: "folder")
+                                Label(L10n.text("打开结果"), systemImage: "folder")
                             }.disabled(job.savedOutput == nil)
                         }.modifier(AppActionStyle())
                     }
@@ -245,29 +245,29 @@ struct ContentView: View {
             Divider()
             if job.ready {
                 if job.state == .partial {
-                    Label("部分内容未能解析，请核对可用结果。", systemImage: "exclamationmark.triangle")
+                    Label(L10n.text("部分内容未能解析，请核对可用结果。"), systemImage: "exclamationmark.triangle")
                         .font(.caption).foregroundStyle(.orange).padding(10)
                     if !job.message.isEmpty { Text(job.message).font(.caption).foregroundStyle(.secondary).padding(.horizontal) }
                 }
                 if let error = job.saveError {
                     HStack {
-                        Text("自动保存失败：" + error).font(.caption).textSelection(.enabled)
-                        Button("重试保存") { model.saveResult(job.id) }.modifier(AppActionStyle())
+                        Text(L10n.text("自动保存失败：") + error).font(.caption).textSelection(.enabled)
+                        Button(L10n.text("重试保存")) { model.saveResult(job.id) }.modifier(AppActionStyle())
                     }.foregroundStyle(.orange).padding(12)
                 }
                 HStack {
-                    Picker("显示方式", selection: $model.previewMode) {
-                        Text("预览").tag(0); Text("Markdown").tag(1)
+                    Picker(L10n.text("显示方式"), selection: $model.previewMode) {
+                        Text(L10n.text("预览")).tag(0); Text("Markdown").tag(1)
                     }.pickerStyle(.segmented).labelsHidden().frame(width: 180)
                     Spacer()
-                    Text(job.saving ? "正在自动保存…" : job.savedOutput != nil ? "已自动保存 · 图片已嵌入" : "转换结果待保存").font(.system(size: 10)).foregroundStyle(.tertiary)
+                    Text(job.saving ? L10n.text("正在自动保存…") : job.savedOutput != nil ? L10n.text("已自动保存 · 图片已嵌入") : L10n.text("转换结果待保存")).font(.system(size: 10)).foregroundStyle(.tertiary)
                 }.padding(.horizontal, 24).padding(.vertical, 12)
                 if model.previewLimited {
-                    Text("超过 100 MB 的格式显示有限文本预览；结果文件保留完整内容。")
+                    Text(L10n.text("超过 100 MB 的格式显示有限文本预览；结果文件保留完整内容。"))
                         .font(.caption).foregroundStyle(.secondary).padding(.horizontal, 24).padding(.bottom, 8)
                 }
                 if model.previewLoading {
-                    ProgressView("正在载入预览…").frame(maxWidth: .infinity, maxHeight: .infinity)
+                    ProgressView(L10n.text("正在载入预览…")).frame(maxWidth: .infinity, maxHeight: .infinity)
                 } else if model.previewMode == 0 && !model.html.isEmpty {
                     DocumentPreview(html: model.html,
                                     onFileDrop: { urls in Task { await model.add(urls) } },
@@ -282,29 +282,29 @@ struct ContentView: View {
                 Spacer()
                 if job.state == .running {
                     ProgressView().controlSize(.large)
-                    Text("正在整理文档结构").font(.title3).padding(.top, 16)
+                    Text(L10n.text("正在整理文档结构")).font(.title3).padding(.top, 16)
                     Text("\(model.status)").font(.caption).foregroundStyle(.secondary).padding(.top, 8)
-                    Button("查看运行日志") { model.showLogs = true }.buttonStyle(.link).padding(.top, 12)
+                    Button(L10n.text("查看运行日志")) { model.showLogs = true }.buttonStyle(.link).padding(.top, 12)
                 } else if job.state == .failed || job.state == .cancelled {
                     Image(systemName: job.state == .failed ? "exclamationmark.circle" : "stop.circle")
                         .font(.system(size: 34, weight: .light)).foregroundStyle(.secondary)
-                    Text(job.state.rawValue).font(.title3).padding(.top, 12)
+                    Text(L10n.text(job.state.rawValue)).font(.title3).padding(.top, 12)
                     if !job.message.isEmpty {
                         ScrollView { Text(job.message).font(.caption).textSelection(.enabled).foregroundStyle(.secondary) }
                             .frame(maxWidth: 480, maxHeight: 110).padding(.top, 8)
                     }
-                    Button("重试转换") { model.retry(job.id) }
+                    Button(L10n.text("重试转换")) { model.retry(job.id) }
                         .modifier(AppActionStyle(prominent: true)).disabled(model.isBusy).padding(.top, 16)
                 } else {
                     Image(systemName: "doc.text.magnifyingglass").font(.system(size: 38, weight: .ultraLight)).foregroundStyle(accent)
-                    Text(model.queuePaused ? "队列已暂停" : model.engineReady ? "已排队，将自动开始转换" : "准备本地引擎后自动转换")
+                    Text(model.queuePaused ? L10n.text("队列已暂停") : model.engineReady ? L10n.text("已排队，将自动开始转换") : L10n.text("准备本地引擎后自动转换"))
                         .font(.title3).padding(.top, 16)
-                    Text("保留标题、段落、列表与表格结构").font(.caption).foregroundStyle(.secondary).padding(.top, 8)
+                    Text(L10n.text("保留标题、段落、列表与表格结构")).font(.caption).foregroundStyle(.secondary).padding(.top, 8)
                     if !model.engineReady {
-                        Button("准备本地引擎") { Task { await model.install() } }
+                        Button(L10n.text("准备本地引擎")) { Task { await model.install() } }
                             .modifier(AppActionStyle(prominent: true)).disabled(model.isBusy).padding(.top, 22)
                     } else if model.queuePaused {
-                        Button("继续处理") { Task { await model.start() } }
+                        Button(L10n.text("继续处理")) { Task { await model.start() } }
                             .modifier(AppActionStyle(prominent: true)).disabled(model.isBusy).padding(.top, 22)
                     }
                 }
@@ -317,12 +317,19 @@ struct ContentView: View {
         HStack(spacing: 7) {
             if model.isBusy || model.isImporting || model.isSaving { ProgressView().controlSize(.mini) }
             else { Circle().fill(model.engineReady ? accent : .secondary).frame(width: 5, height: 5) }
-            Text(model.isImporting ? "正在后台整理文件…" : model.isSaving ? "正在自动保存结果…" : model.status).lineLimit(1)
+            Text(model.isImporting ? L10n.text("正在后台整理文件…") : model.isSaving ? L10n.text("正在自动保存结果…") : model.status).lineLimit(1)
             Spacer()
-            if model.waiting > 0 { Text("\(model.waiting) 份待处理").foregroundStyle(.secondary) }
+            if model.waiting > 0 { Text(L10n.text("%@ 份待处理", String(describing: model.waiting))).foregroundStyle(.secondary) }
             Button { model.showLogs = true } label: { Image(systemName: "terminal") }
-                .buttonStyle(.plain).help("运行日志").accessibilityLabel("运行日志")
+                .buttonStyle(.plain).help(L10n.text("运行日志")).accessibilityLabel(L10n.text("运行日志"))
         }.font(.system(size: 10)).foregroundStyle(.secondary).padding(.horizontal, 18).frame(height: 34)
+    }
+
+    private func jobStatus(_ job: DocumentJob) -> String {
+        if job.saveError != nil { return L10n.text("保存失败") }
+        if job.saving { return L10n.text("正在保存") }
+        if model.showsReuseNotice(job.id) { return L10n.text("已复用") }
+        return L10n.text(job.state.rawValue)
     }
 
     private func stateColor(_ state: JobState) -> Color {

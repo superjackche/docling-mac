@@ -25,7 +25,7 @@ final class ProcessRunner {
              processGroup: Bool = false, logLimit: Int = 32_768,
              line: @escaping (String) -> Void = { _ in },
              update: @escaping (String, String) -> Void) async throws -> ProcessResult {
-        guard process == nil else { throw ClientError("已有后台任务正在运行。") }
+        guard process == nil else { throw ClientError(L10n.text("已有后台任务正在运行。")) }
         let child = Process()
         let stdout = Pipe(), stderr = Pipe()
         child.executableURL = executable
@@ -96,7 +96,7 @@ final class ProcessRunner {
         // Finish the bounded group shutdown even if the parent exited before a child.
         if let forceStop { await forceStop.value }
         if !pending.isEmpty { line(String(decoding: pending, as: UTF8.self)) }
-        if let readError { throw ClientError("无法读取后台进程输出：\(readError)") }
+        if let readError { throw ClientError(L10n.text("无法读取后台进程输出：%@", String(describing: readError))) }
         return ProcessResult(status: status, output: String(decoding: output, as: UTF8.self),
                              errors: String(decoding: errors, as: UTF8.self))
     }

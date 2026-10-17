@@ -36,7 +36,7 @@ enum FileOperations {
         var seen = Set<String>()
         func append(_ url: URL, explicit: Bool) {
             guard extensions.contains(url.pathExtension.lowercased()) else {
-                if explicit { result.rejected.append(url.lastPathComponent + "：不支持的格式") }
+                if explicit { result.rejected.append(url.lastPathComponent + L10n.text("：不支持的格式")) }
                 return
             }
             do {
@@ -49,7 +49,7 @@ enum FileOperations {
         }
         for url in urls {
             guard !Task.isCancelled else { break }
-            guard url.isFileURL else { result.rejected.append(url.absoluteString + "：仅支持本地文件"); continue }
+            guard url.isFileURL else { result.rejected.append(url.absoluteString + L10n.text("：仅支持本地文件")); continue }
             do {
                 let info = try url.resourceValues(forKeys: [.isDirectoryKey])
                 if info.isDirectory == true {
@@ -58,7 +58,7 @@ enum FileOperations {
                         result.rejected.append(item.lastPathComponent + "：" + error.localizedDescription)
                         return true
                     }
-                    guard let iterator else { result.rejected.append(url.lastPathComponent + "：无法读取文件夹"); continue }
+                    guard let iterator else { result.rejected.append(url.lastPathComponent + L10n.text("：无法读取文件夹")); continue }
                     for case let child as URL in iterator {
                         if Task.isCancelled { break }
                         append(child, explicit: false)
@@ -96,7 +96,7 @@ enum FileOperations {
     static func save(_ source: URL, to destination: URL, protecting inputs: [URL], originalFilename: String? = nil) throws {
         let target = destination.resolvingSymlinksInPath().standardizedFileURL
         guard !inputs.contains(where: { $0.resolvingSymlinksInPath().standardizedFileURL == target }) else {
-            throw ClientError("请另存为新文件，避免覆盖输入文档。")
+            throw ClientError(L10n.text("请另存为新文件，避免覆盖输入文档。"))
         }
         let temporary = destination.deletingLastPathComponent().appendingPathComponent(".Docling-export-\(UUID().uuidString)")
         defer { try? FileManager.default.removeItem(at: temporary) }
@@ -118,7 +118,7 @@ enum FileOperations {
             // this root field. JSON strings cannot contain an unescaped newline.
             let boundary = Data(",\n  \"furniture\":".utf8)
             guard let split = prefix.range(of: boundary) else {
-                throw ClientError("Docling JSON 头部格式不符或超过 64 KiB，未保存文件。")
+                throw ClientError(L10n.text("Docling JSON 头部格式不符或超过 64 KiB，未保存文件。"))
             }
             var headerData = Data(prefix[..<split.lowerBound])
             headerData.append(contentsOf: "\n}".utf8)
@@ -126,7 +126,7 @@ enum FileOperations {
                   header["schema_name"] as? String == "DoclingDocument",
                   header["version"] is String, header["name"] is String,
                   var origin = header["origin"] as? [String: Any], origin["filename"] is String else {
-                throw ClientError("Docling JSON 缺少完整来源元数据，未保存文件。")
+                throw ClientError(L10n.text("Docling JSON 缺少完整来源元数据，未保存文件。"))
             }
             header["name"] = (originalFilename as NSString).deletingPathExtension
             origin["filename"] = originalFilename

@@ -35,6 +35,7 @@ cp .build/release/DoclingMac "$app/Contents/MacOS/DoclingMac"
 strip -S "$app/Contents/MacOS/DoclingMac"
 cp Backend/worker.py Backend/result_cache.py Backend/models.py Backend/runtime.json Backend/pyproject.toml Backend/uv.lock "$app/Contents/Resources/Backend/"
 cp Info.plist "$app/Contents/Info.plist"
+cp -R Sources/DoclingMac/Resources/en.lproj Sources/DoclingMac/Resources/zh-Hans.lproj "$app/Contents/Resources/"
 cp LICENSE THIRD_PARTY_NOTICES.md "$app/Contents/Resources/"
 # Keep the original .icns for macOS 14/15 and let macOS 26+ use the layered icon.
 mkdir -p .build/icon-assets

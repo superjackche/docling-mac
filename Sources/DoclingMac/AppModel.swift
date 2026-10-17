@@ -57,7 +57,7 @@ final class AppModel: ObservableObject {
     @Published var isImporting = false
     @Published var engineReady = false
     @Published var modelsReady = false
-    @Published var status = "文档留在你的 Mac 上"
+    @Published var status = L10n.text("文档留在你的 Mac 上")
     @Published var logs = ""
     @Published var errorMessage: String?
     @Published var showLogs = false
@@ -68,7 +68,7 @@ final class AppModel: ObservableObject {
     @Published var previewLoading = false
     @Published var previewMode = 0
     @Published var importing = false
-    @Published var upstreamMessage = "使用随客户端验证的锁定版本"
+    @Published var upstreamMessage = L10n.text("使用随客户端验证的锁定版本")
     @Published var queuePaused = false
     @Published private var reuseNotices: [UUID: Date] = [:]
     @AppStorage("recognizeScans") var ocr = true
@@ -146,9 +146,9 @@ final class AppModel: ObservableObject {
         reindex()
         if let first = promoted.first { selection = first.id }
         let reused = result.files.count - added
-        if !isBusy { status = "已添加 \(added) 份" + (reused > 0 ? "，\(reused) 份已有记录已移到顶部" : "") }
+        if !isBusy { status = L10n.text("已添加 %@ 份", String(describing: added)) + (reused > 0 ? L10n.text("，%@ 份已有记录已移到顶部", String(describing: reused)) : "") }
         if !result.rejected.isEmpty {
-            errorMessage = "有 \(result.rejected.count) 个项目未加入：\n" + result.rejected.prefix(12).joined(separator: "\n")
+            errorMessage = L10n.text("有 %@ 个项目未加入：\n", String(describing: result.rejected.count)) + result.rejected.prefix(12).joined(separator: "\n")
         }
         if startAutomatically { startWaitingAutomatically() }
     }
@@ -189,13 +189,13 @@ final class AppModel: ObservableObject {
             URL(fileURLWithPath: "/opt/homebrew/bin/uv"), URL(fileURLWithPath: "/usr/local/bin/uv")
         ]
         guard let uv = candidates.first(where: { FileManager.default.isExecutableFile(atPath: $0.path) }) else {
-            errorMessage = "请先安装 uv（brew install uv），再点击准备引擎。安装说明见帮助菜单。"; return
+            errorMessage = L10n.text("请先安装 uv（brew install uv），再点击准备引擎。安装说明见帮助菜单。"); return
         }
         guard let hash = lockHash, configuration != nil else {
-            errorMessage = "应用缺少引擎配置，请重新构建。"; return
+            errorMessage = L10n.text("应用缺少引擎配置，请重新构建。"); return
         }
         isBusy = true; installing = true; cancelled = false; logs = ""
-        status = "正在准备引擎，首次安装需要几分钟…"
+        status = L10n.text("正在准备引擎，首次安装需要几分钟…")
         defer { isBusy = false; installing = false; startWaitingAutomatically() }
         do {
             try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
@@ -207,11 +207,11 @@ final class AppModel: ObservableObject {
                 arguments: ["sync", "--project", backend.path, "--locked", "--no-dev", "--python", "3.12"],
                 environment: ["UV_PROJECT_ENVIRONMENT": support.appendingPathComponent("runtime").path, "UV_NO_PROGRESS": "1"]
             ) { [weak self] _, errors in self?.logs = errors }
-            guard !cancelled, result.status == 0 else { throw ClientError(cancelled ? "安装已取消" : result.errors) }
+            guard !cancelled, result.status == 0 else { throw ClientError(cancelled ? L10n.text("安装已取消") : result.errors) }
             try hash.write(to: marker, atomically: true, encoding: .utf8)
             engineReady = true; refreshModelsReady()
-            status = "本地引擎已就绪"
-        } catch { status = "引擎安装未完成"; if !cancelled { errorMessage = error.localizedDescription } }
+            status = L10n.text("本地引擎已就绪")
+        } catch { status = L10n.text("引擎安装未完成"); if !cancelled { errorMessage = error.localizedDescription } }
     }
 
     private func refreshModelsReady() {
@@ -228,7 +228,7 @@ final class AppModel: ObservableObject {
     }
 
     private func prepareModelsInBackground(allowNetwork: Bool = true) async throws {
-        status = "正在准备 PDF 模型，完成后验证离线加载…"
+        status = L10n.text("正在准备 PDF 模型，完成后验证离线加载…")
         var environment = engineEnvironment
         environment["HF_HUB_OFFLINE"] = allowNetwork ? "0" : "1"
         let result = try await runner.run(python,
@@ -237,11 +237,11 @@ final class AppModel: ObservableObject {
         ) { [weak self] _, errors in self?.logs = errors }
         guard result.status == 0, !cancelled else {
             modelsReady = false
-            throw ClientError(cancelled ? "模型准备已取消" : WorkerEvent.parse(result.output).last?.message ?? result.errors)
+            throw ClientError(cancelled ? L10n.text("模型准备已取消") : WorkerEvent.parse(result.output).last?.message ?? result.errors)
         }
         refreshModelsReady()
-        guard modelsReady else { throw ClientError("模型验证记录不完整，请重新准备模型。") }
-        status = "模型已验证，可离线处理 PDF 与图片"
+        guard modelsReady else { throw ClientError(L10n.text("模型验证记录不完整，请重新准备模型。")) }
+        status = L10n.text("模型已验证，可离线处理 PDF 与图片")
     }
 
     func prepareModels() async {
@@ -254,7 +254,7 @@ final class AppModel: ObservableObject {
 
     func checkUpdates() async {
         guard engineReady, !isBusy, !quitting else { return }
-        isBusy = true; cancelled = false; upstreamMessage = "正在查询官方版本…"
+        isBusy = true; cancelled = false; upstreamMessage = L10n.text("正在查询官方版本…")
         defer { isBusy = false; startWaitingAutomatically() }
         do {
             let result = try await runner.run(python, arguments: [backend.appendingPathComponent("models.py").path, "--updates"],
@@ -262,14 +262,14 @@ final class AppModel: ObservableObject {
             guard result.status == 0, let update = WorkerEvent.parse(result.output).last(where: { $0.event == "update" }) else {
                 throw ClientError(WorkerEvent.parse(result.output).last?.message ?? result.errors)
             }
-            upstreamMessage = "当前 \(update.current ?? "") · 上游 \(update.latest ?? "")" + (update.available == true ? "；有新版本，需适配后随客户端更新" : "；已是上游当前版本")
-        } catch { upstreamMessage = "检查失败：\(error.localizedDescription)" }
+            upstreamMessage = L10n.text("当前 %@ · 上游 %@", String(describing: update.current ?? ""), String(describing: update.latest ?? "")) + (update.available == true ? L10n.text("；有新版本，需适配后随客户端更新") : L10n.text("；已是上游当前版本"))
+        } catch { upstreamMessage = L10n.text("检查失败：%@", String(describing: error.localizedDescription)) }
     }
 
     func start() async {
         guard engineReady, let config = configuration, !isBusy, waiting > 0, !quitting else { return }
         isBusy = true; cancelled = false; queuePaused = false; logs = ""
-        defer { isBusy = false; if cancelled { status = "已停止，尚未开始的文档保留在队列中" } }
+        defer { isBusy = false; if cancelled { status = L10n.text("已停止，尚未开始的文档保留在队列中") } }
         do {
             while waiting > 0 && !cancelled {
                 let batch = jobs.filter { $0.state == .pending }
@@ -298,8 +298,8 @@ final class AppModel: ObservableObject {
                 guard result.status == 0, WorkerEvent.parse(result.output).contains(where: { $0.event == "batch_complete" }) else {
                     throw ClientError(WorkerEvent.parse(result.output).last(where: { $0.event == "error" })?.message ?? result.errors)
                 }
-                status = "已完成 \(completed) 份" + (reused > 0 ? " · \(reused) 份复用结果" : "") + " · 结果已自动保存"
-                if jobs.contains(where: { $0.saveError != nil }) { status = "部分结果保存失败，请在文档中重试保存" }
+                status = L10n.text("已完成 %@ 份", String(describing: completed)) + (reused > 0 ? L10n.text(" · %@ 份复用结果", String(describing: reused)) : "") + L10n.text(" · 结果已自动保存")
+                if jobs.contains(where: { $0.saveError != nil }) { status = L10n.text("部分结果保存失败，请在文档中重试保存") }
             }
         } catch {
             queuePaused = true
@@ -307,7 +307,7 @@ final class AppModel: ObservableObject {
                 jobs[i].state = cancelled ? .cancelled : .failed
                 jobs[i].message = error.localizedDescription
             }
-            status = cancelled ? "已停止" : "后台任务未完成，可查看日志"
+            status = cancelled ? L10n.text("已停止") : L10n.text("后台任务未完成，可查看日志")
             if !cancelled { errorMessage = error.localizedDescription }
         }
         if let saveTask { await saveTask.value }
@@ -315,7 +315,7 @@ final class AppModel: ObservableObject {
 
     private func receive(_ line: String) {
         guard let event = WorkerEvent.parse(line).first, !quitting || event.event == "complete" else { return }
-        if let message = event.message, !cancelled { status = message }
+        if let message = event.message, !cancelled { status = L10n.text(message) }
         guard let id = event.id, let index = indices[id] else { return }
         switch event.event {
         case "started": jobs[index].state = .running
@@ -328,12 +328,12 @@ final class AppModel: ObservableObject {
             saveResult(id)
             if event.cached == true { showReuseNotice(id) }
             if selection == id && !quitting { loadPreview() }
-        case "error": jobs[index].state = .failed; jobs[index].message = event.message ?? "转换失败"
+        case "error": jobs[index].state = .failed; jobs[index].message = event.message.map { L10n.text($0) } ?? L10n.text("转换失败")
         default: break
         }
     }
 
-    func cancel() { cancelled = true; queuePaused = true; status = "正在停止…"; runner.cancel() }
+    func cancel() { cancelled = true; queuePaused = true; status = L10n.text("正在停止…"); runner.cancel() }
 
     func retry(_ id: UUID, startAutomatically: Bool = true) {
         guard !isBusy, !isSaving, let index = indices[id] else { return }
@@ -352,7 +352,7 @@ final class AppModel: ObservableObject {
 
     func clearQueue() {
         guard !isBusy, !isImporting, !isSaving else { return }
-        jobs.removeAll(); reindex(); selection = nil; loadPreview(); status = "队列已清空，已保存文件仍保留在 Docling_Mac"
+        jobs.removeAll(); reindex(); selection = nil; loadPreview(); status = L10n.text("队列已清空，已保存文件仍保留在 Docling_Mac")
         queuePaused = false
         reuseNoticeTask?.cancel(); reuseNoticeTask = nil; reuseNotices.removeAll()
         Task {
@@ -406,7 +406,7 @@ final class AppModel: ObservableObject {
                 }.value
                 guard !quitting else { return }
                 NSPasteboard.general.clearContents(); NSPasteboard.general.setString(text, forType: .string)
-                status = "完整 Markdown 已复制"
+                status = L10n.text("完整 Markdown 已复制")
             } catch { errorMessage = error.localizedDescription }
         }
     }
@@ -415,7 +415,7 @@ final class AppModel: ObservableObject {
         do {
             try FileManager.default.createDirectory(at: results, withIntermediateDirectories: true,
                                                     attributes: [.posixPermissions: 0o700])
-            if !NSWorkspace.shared.open(folder ?? results) { throw ClientError("无法打开结果文件夹。") }
+            if !NSWorkspace.shared.open(folder ?? results) { throw ClientError(L10n.text("无法打开结果文件夹。")) }
         } catch { errorMessage = error.localizedDescription }
     }
 
@@ -431,7 +431,7 @@ final class AppModel: ObservableObject {
                 isSaving = false; saveTask = nil
                 if !isBusy && !quitting {
                     status = jobs.contains(where: { $0.saveError != nil })
-                        ? "部分结果保存失败，请在文档中重试保存" : "结果已自动保存到 Docling_Mac"
+                        ? L10n.text("部分结果保存失败，请在文档中重试保存") : L10n.text("结果已自动保存到 Docling_Mac")
                 }
             }
             while !pendingSaves.isEmpty {
@@ -464,7 +464,7 @@ final class AppModel: ObservableObject {
         let unsaved = jobs.filter { $0.ready && $0.savedOutput == nil }
         guard unsaved.isEmpty else {
             quitting = false
-            errorMessage = "还有 \(unsaved.count) 份结果未能保存，已取消退出。请检查 Docling_Mac 文件夹和磁盘空间，再点击文档中的「重试保存」。临时结果仍保留，可以继续查看。"
+            errorMessage = L10n.text("还有 %@ 份结果未能保存，已取消退出。请检查 Docling_Mac 文件夹和磁盘空间，再点击文档中的「重试保存」。临时结果仍保留，可以继续查看。", String(describing: unsaved.count))
             return false
         }
         do { try await pruneCache() }
@@ -476,6 +476,6 @@ final class AppModel: ObservableObject {
 
 struct ClientError: LocalizedError {
     let message: String
-    init(_ message: String) { self.message = message.isEmpty ? "引擎意外退出，请查看运行日志。" : message }
-    var errorDescription: String? { message }
+    init(_ message: String) { self.message = message.isEmpty ? L10n.text("引擎意外退出，请查看运行日志。") : message }
+    var errorDescription: String? { L10n.text(message) }
 }

@@ -5,6 +5,6 @@ let package = Package(
     name: "DoclingMac",
     platforms: [.macOS(.v14)],
     targets: [
-        .executableTarget(name: "DoclingMac")
+        .executableTarget(name: "DoclingMac", exclude: ["Resources"])
     ]
 )

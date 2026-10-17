@@ -13,22 +13,24 @@ An independent, unofficial client built with SwiftUI and AppKit, with no third-p
 
 ## Install and use
 
-Requires **Apple Silicon (M-series) and macOS 14+**. The pinned engine does not support Intel Macs. macOS 26+ uses native Liquid Glass; macOS 14/15 uses compatible native controls. The current app interface is in Chinese; the Chinese button labels below match the app.
+Requires **Apple Silicon (M-series) and macOS 14+**. The pinned engine does not support Intel Macs. macOS 26+ uses native Liquid Glass; macOS 14/15 uses compatible native controls. The app supports English and Simplified Chinese and follows your preferred language list by default; English is used when neither language matches. Choose **Follow system / English / 简体中文** in **Settings → Language** (`⌘,`). Quit and reopen the app to apply a change to the interface, menus, and system dialogs. Let running tasks finish before quitting.
 
 Download the DMG from [GitHub Releases](https://github.com/superjackche/docling-mac/releases/latest) and drag the app into Applications, or extract the ZIP. The package contains only the roughly 6 MB client; the processing environment and models are downloaded separately during setup.
 
 The public build is ad-hoc signed and has **not been notarized with Developer ID**. macOS may block the first launch. After checking the source, follow [Apple's instructions](https://support.apple.com/102445) to allow it in **System Settings → Privacy & Security**.
 
 1. Install [uv](https://docs.astral.sh/uv/getting-started/installation/): `brew install uv`.
-2. Open `Docling Mac.app` and click **准备本地引擎** (Prepare local engine). The app installs the pinned Python 3.12 environment and dependencies.
+2. Open `Docling Mac.app` and click **Prepare local engine**. The app installs the pinned Python 3.12 environment and dependencies.
 3. Drop files or folders, or press `⌘O` to select them. Conversion starts automatically.
-4. Review the preview. Results are saved automatically to `~/Docling_Mac/`. Click **打开结果** (Open result) for the selected document or **结果文件夹** (Results folder) in the toolbar for all results. You can also copy Markdown directly.
+4. Review the preview. Results are saved automatically to `~/Docling_Mac/`. Click **Open result** for the selected document or **Results folder** in the toolbar for all results. You can also copy Markdown directly.
 
 The whole content area accepts drops, including the list, preview, and empty space. A window-wide highlight and drop prompt appear while dragging.
 
 Supported inputs: **PDF, DOCX, PPTX, XLSX, HTML, Markdown, CSV**, and **PNG, JPEG, TIFF, BMP, WebP**. Scans use Apple OCR for Chinese and English. Images are embedded in the output. Partial successes and failures are reported explicitly, with manual retry available.
 
-PDF and image processing require an initial online download of layout and table models. You can prepare these in **引擎与模型** (Engine & models). Setup verifies that models actually load offline; conversion always uses Hugging Face offline mode. The app looks for uv in `~/.local/bin/uv`, `/opt/homebrew/bin/uv`, or `/usr/local/bin/uv`. The environment and models use about **1.6 GB**, with additional download cache space needed during installation.
+PDF and image processing require an initial online download of layout and table models. You can prepare these in **Engine & models**. Setup verifies that models actually load offline; conversion always uses Hugging Face offline mode. The app looks for uv in `~/.local/bin/uv`, `/opt/homebrew/bin/uv`, or `/usr/local/bin/uv`. The environment and models use about **1.6 GB**, with additional download cache space needed during installation.
+
+App-generated controls, queue states, and messages are localized. Raw engine logs and third-party diagnostic messages retain their original language. Language selection does not change OCR languages or document content.
 
 ## Liquid Glass
 
@@ -45,8 +47,8 @@ The icon uses Apple Icon Composer's layered format: an AI-generated transparent 
 - Reimporting a file with the same path, size, and modification time moves its existing entry to the top and selects it. The reuse notice lasts 4 seconds before returning to the completed state. Identical content at different paths can reuse results via streaming SHA-256. Changes to content, extension, OCR settings, engine lock, backend code, configuration, or model identity invalidate the cache.
 - The result cache defaults to **512 MiB and 14 days**. Results referenced by the current queue are retained temporarily and may exceed the limit; clearing the queue or exiting trims the cache. Clearing the queue, exiting, or cleaning the cache never deletes permanent results in `~/Docling_Mac/`. The queue is not restored after quitting.
 - Previews have a **100 MiB limit** (shown as 100 MB in the app). Only the selected HTML or Markdown view is loaded; switching views cancels the previous read. Oversized HTML uses a limited text preview while the complete output stays on disk. Markdown uses a native text view with on-demand layout. The limit applies to reading, not to WebKit's total rendering memory.
-- Results are saved sequentially in the background, copying 1 MiB at a time. Reused JSON results recover each input's own source filename. All three formats are staged in a hidden temporary directory and published together only after successful writes. Save failures are shown explicitly; **重试保存** (Retry save) does not require reconversion.
-- Conversion starts after import. **继续处理** (Continue processing) appears only after a manual stop; files added while stopped wait for you to continue. Retrying starts processing automatically. Closing the window leaves the current task running. Quitting waits for the conversion process group to stop, cancels imports and obsolete preview reads, finishes saving completed documents, and then clears temporary files. A save failure cancels quitting and preserves viewable results. Failed work is not retried automatically, and incomplete results are not cached for reuse.
+- Results are saved sequentially in the background, copying 1 MiB at a time. Reused JSON results recover each input's own source filename. All three formats are staged in a hidden temporary directory and published together only after successful writes. Save failures are shown explicitly; **Retry save** does not require reconversion.
+- Conversion starts after import. **Resume processing** appears only after a manual stop; files added while stopped wait for you to continue. Retrying starts processing automatically. Closing the window leaves the current task running. Quitting waits for the conversion process group to stop, cancels imports and obsolete preview reads, finishes saving completed documents, and then clears temporary files. A save failure cancels quitting and preserves viewable results. Failed work is not retried automatically, and incomplete results are not cached for reuse.
 
 Runtime settings are in [Backend/runtime.json](Backend/runtime.json); rebuild after editing them. See [performance measurements and conditions](docs/PERFORMANCE.md).
 

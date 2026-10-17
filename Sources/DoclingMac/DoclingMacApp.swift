@@ -9,6 +9,7 @@ struct DoclingMacApp: App {
     var body: some Scene {
         Window("Docling Mac", id: "main") {
             ContentView(model: model)
+                .environment(\.locale, L10n.locale)
                 .frame(minWidth: 900, minHeight: 600)
                 .onAppear { delegate.model = model }
                 .onOpenURL { url in Task { await model.add([url]) } }
@@ -17,13 +18,16 @@ struct DoclingMacApp: App {
         .windowToolbarStyle(.unified)
         .commands {
             CommandGroup(replacing: .newItem) {
-                Button("添加文档…") { model.chooseFiles() }.keyboardShortcut("o")
+                Button(L10n.text("添加文档…")) { model.chooseFiles() }.keyboardShortcut("o")
+            }
+            CommandGroup(replacing: .appSettings) {
+                Button(L10n.text("设置…")) { model.showSettings = true }.keyboardShortcut(",")
             }
             CommandGroup(replacing: .help) {
-                Link("Docling 项目", destination: URL(string: "https://github.com/docling-project/docling")!)
-                Link("安装 uv", destination: URL(string: "https://docs.astral.sh/uv/getting-started/installation/")!)
-                Button("查看运行日志") { model.showLogs = true }
-                Button("引擎与模型…") { model.showSettings = true }
+                Link(L10n.text("Docling 项目"), destination: URL(string: "https://github.com/docling-project/docling")!)
+                Link(L10n.text("安装 uv"), destination: URL(string: "https://docs.astral.sh/uv/getting-started/installation/")!)
+                Button(L10n.text("查看运行日志")) { model.showLogs = true }
+                Button(L10n.text("引擎与模型…")) { model.showSettings = true }
             }
         }
     }
